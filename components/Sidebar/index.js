@@ -212,7 +212,7 @@ export default function Sidebar() {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer sk-OSqhqCm1DoE24Kf0E2796eAeE75b484d9f08CbD779E7870a`,
+              Authorization: ``,
             },
             body: JSON.stringify({
               model: "claude-3-5-sonnet-20240620",

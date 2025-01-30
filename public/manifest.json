@@ -1,0 +1,65 @@
+{
+	"manifest_version": 3,
+	"name": "Super2Brain",
+	"short_name": "Super2Brain",
+	"version": "1.0.0",
+	"description": "Super2Brain",
+	"author": "LiM",
+	"homepage_url": "https://x.super2brain.com",
+	"icons": {
+		"16": "/icons/logo.png",
+		"32": "/icons/logo.png",
+		"48": "/icons/logo.png",
+		"192": "/icons/logo.png"
+	},
+	"permissions": [
+		"bookmarks",
+		"storage",
+		"scripting",
+		"sidePanel",
+		"commands",
+		"contextMenus",
+		"activeTab",
+		"tabs",
+		"desktopCapture",
+		"downloads",
+		"scripting",
+		"activeTab"
+	],
+	"background": {
+		"service_worker": "background.js",
+		"type": "module"
+	},
+	"content_scripts": [
+		{
+			"matches": ["<all_urls>"],
+			"js": ["Readability.js", "turndown.js", "inject.js", "content-script.js"],
+			"css": ["index.css"],
+			"run_at": "document_end"
+		}
+	],
+	"host_permissions": ["<all_urls>"],
+	"action": {
+		"default_popup": "index.html#/popup",
+		"default_title": "Super2Brain"
+	},
+	"side_panel": {
+		"default_path": "sidepanel.html"
+	},
+	"web_accessible_resources": [
+		{
+			"resources": ["status.html", "status.js", "index.css", "welcome.html", "inject.js"],
+			"matches": ["<all_urls>"]
+		}
+	],
+	
+	"commands": {
+		"toggle-sidebar": {
+			"suggested_key": {
+				"default": "Ctrl+Shift+S",
+				"mac": "Command+Shift+S"
+			},
+			"description": "打开/关闭侧边栏"
+		}
+	}
+}

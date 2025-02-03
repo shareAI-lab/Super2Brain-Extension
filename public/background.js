@@ -4,6 +4,8 @@ import {
   processSelectedBookmarks,
   fetchPageContent,
   sendToBackend,
+  captureVisibleTab,
+  captureFullPage,
 } from "./utils.js";
 import {
   getItem,
@@ -19,7 +21,6 @@ const tabStates = new Map();
 
 chrome.runtime.onInstalled.addListener(function (details) {
   if (details.reason === "install") {
-    // 打开欢迎页面
     chrome.tabs.create({
       url: chrome.runtime.getURL("welcome.html"),
       active: true,
@@ -231,7 +232,6 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   }
 });
 
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'OPEN_MINDMAP') {
     chrome.tabs.create({
@@ -240,5 +240,78 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
            `&url=${encodeURIComponent(message.payload.url)}` +
            `&title=${encodeURIComponent(message.payload.title)}`
     });
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "OPEN_MIND_MAP") {
+    chrome.sidePanel.open({ windowId: sender.tab.windowId });
+  }
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "CAPTURE_SCREENSHOT") {
+    captureVisibleTab()
+      .then(result => sendResponse(result))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true; // 保持消息通道打开
+  }
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'CAPTURE_SELECTED_AREA') {
+    (async () => {
+      try {
+        const tab = sender.tab;
+        const { x, y, width, height, devicePixelRatio } = request.payload;
+        
+        // 捕获整个可见区域
+        const dataUrl = await chrome.tabs.captureVisibleTab(null, {
+          format: 'png'
+        });
+        
+        // 创建离屏 canvas
+        const offscreenCanvas = new OffscreenCanvas(
+          width * devicePixelRatio,
+          height * devicePixelRatio
+        );
+        const ctx = offscreenCanvas.getContext('2d');
+        
+        // 创建位图
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        const bitmap = await createImageBitmap(blob);
+        
+        // 裁剪指定区域
+        ctx.drawImage(bitmap,
+          x * devicePixelRatio, y * devicePixelRatio,
+          width * devicePixelRatio, height * devicePixelRatio,
+          0, 0,
+          width * devicePixelRatio, height * devicePixelRatio
+        );
+        
+        // 转换为 blob
+        const croppedBlob = await offscreenCanvas.convertToBlob({
+          type: 'image/png'
+        });
+        
+        // 转换为 base64
+        const reader = new FileReader();
+        reader.readAsDataURL(croppedBlob);
+        reader.onloadend = () => {
+          // 发送消息给 content script
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'SCREENSHOT_CAPTURED',
+            payload: {
+              dataUrl: reader.result
+            }
+          });
+        };
+        
+      } catch (error) {
+        console.error('截图失败:', error);
+      }
+    })();
+    return true;
   }
 });

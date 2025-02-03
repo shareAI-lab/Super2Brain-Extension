@@ -12,7 +12,7 @@ async function initializeContentScript() {
       payload: markdown,
     });
   } catch (error) {
-    console.error('❌ 初始化失败:', error);
+    console.error("❌ 初始化失败:", error);
   }
 
   // URL 变化监听
@@ -26,7 +26,7 @@ async function initializeContentScript() {
           payload: markdown,
         });
       } catch (error) {
-        console.error('❌ 新页面提取失败:', error);
+        console.error("❌ 新页面提取失败:", error);
       }
     }
   });
@@ -177,3 +177,91 @@ async function injectDependencies() {
 
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
+
+// 创建选区截图的 UI
+function createScreenshotUI() {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 999999;
+    cursor: crosshair;
+  `;
+
+  let startX,
+    startY,
+    isDrawing = false;
+  const selection = document.createElement("div");
+  selection.style.cssText = `
+    position: fixed;
+    border: 2px solid #1890ff;
+    background: rgba(24, 144, 255, 0.1);
+    display: none;
+  `;
+
+  overlay.appendChild(selection);
+
+  overlay.addEventListener("mousedown", (e) => {
+    isDrawing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    selection.style.display = "block";
+    selection.style.left = `${startX}px`;
+    selection.style.top = `${startY}px`;
+  });
+
+  overlay.addEventListener("mousemove", (e) => {
+    if (!isDrawing) return;
+
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+
+    const width = currentX - startX;
+    const height = currentY - startY;
+
+    selection.style.width = `${Math.abs(width)}px`;
+    selection.style.height = `${Math.abs(height)}px`;
+    selection.style.left = `${width > 0 ? startX : currentX}px`;
+    selection.style.top = `${height > 0 ? startY : currentY}px`;
+  });
+
+  overlay.addEventListener("mouseup", async () => {
+    isDrawing = false;
+    const rect = selection.getBoundingClientRect();
+
+    // 直接发送消息给 background 进行截图
+    chrome.runtime.sendMessage({
+      type: "CAPTURE_SELECTED_AREA",
+      payload: {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        devicePixelRatio: window.devicePixelRatio,
+      },
+    });
+
+    document.body.removeChild(overlay);
+  });
+
+  document.body.appendChild(overlay);
+}
+
+// 监听消息
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "START_SCREENSHOT") {
+    createScreenshotUI();
+  }
+  // 添加截图完成的消息处理
+  if (request.type === "SCREENSHOT_CAPTURED") {
+    // 将消息转发到 sidebar
+    chrome.runtime.sendMessage({
+      type: "SCREENSHOT_CAPTURED",
+      payload: request.payload,
+    });
+  }
+});

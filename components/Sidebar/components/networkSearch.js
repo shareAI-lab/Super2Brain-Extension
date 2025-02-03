@@ -14,7 +14,6 @@ const NetworkSearch = () => {
 		setLoading(true)
 		try {
 			const response = await getResponse(query, [], progress => {
-				// 可以根据 progress.stage 来显示不同的加载状态
 				console.log('Progress:', progress)
 			})
 			console.log('Response:', response)

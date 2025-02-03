@@ -1,5 +1,5 @@
-import Index from "../components/Index";
+import Index from '../components/Index'
 
 export default function Home() {
-  return <Index />;
+	return <Index />
 }

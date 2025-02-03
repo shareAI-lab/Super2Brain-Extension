@@ -1,5 +1,5 @@
-import React from 'react';
-import Sidebar from '../components/Sidebar';
+import React from 'react'
+import Sidebar from '../components/Sidebar'
 
 export default function SidePanel() {
 	return (

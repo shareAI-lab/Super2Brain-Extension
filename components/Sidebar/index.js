@@ -21,8 +21,9 @@ import { Transformer } from 'markmap-lib'
 import { TextareaRef } from './components/textarea'
 import { getDeepSeekBaseUrl, getDeepSeekApiKey } from '../../public/storage'
 import { SettingPage } from './components/setting'
-import { SelectOption } from './components/selectModel'
 import { ActivateBar } from './components/activateBar'
+import { NetworkSearch } from './components/networkSearch'
+
 export default function Sidebar() {
 	const [activatePage, setActivatePage] = useState(0)
 	const [currentUrl, setCurrentUrl] = useState('')
@@ -297,14 +298,14 @@ export default function Sidebar() {
 	}, [])
 
 	return (
-		<div className="flex h-screen">
+		<div className="flex h-screen overflow-hidden">
 			<div className="flex-1 flex flex-col min-w-0">
 				{activatePage === -1 ? (
 					<SettingPage
 						onClose={() => setActivatePage(0)}
 						updateDeepSeekConfig={fetchDeepSeekConfig}
 					/>
-				) : (
+				) : activatePage === 0 ? (
 					<>
 						<div className="flex-1 overflow-y-auto p-4 relative">
 							{(!deepSeekBaseUrl || !deepSeekApiKey) && (
@@ -369,10 +370,29 @@ export default function Sidebar() {
 							/>
 						</div>
 					</>
+				) : activatePage === 1 ? (
+					<div className="p-2">
+						<NetworkSearch />
+					</div>
+				) : activatePage === 2 ? (
+					<div className="p-2">
+						{/* 添加第三个页面的内容 */}
+						<h2>页面 2</h2>
+					</div>
+				) : activatePage === 3 ? (
+					<div className="p-2">
+						{/* 添加第四个页面的内容 */}
+						<h2>页面 3</h2>
+					</div>
+				) : (
+					<div className="p-2">
+						{/* 添加第五个页面的内容 */}
+						<h2>页面 4</h2>
+					</div>
 				)}
 			</div>
 			<div className="w-10 flex-shrink-0 bg-gray-100">
-				<ActivateBar setActivatePage={setActivatePage} activatePage={activatePage} />
+				<ActivateBar activatePage={activatePage} setActivatePage={setActivatePage} />
 			</div>
 		</div>
 	)

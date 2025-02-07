@@ -1,12 +1,14 @@
 export const getSystemPrompt = (initialResults, context) => {
-	const contextSection = context?.length
-		? `
+  const contextSection = context?.length
+    ? `
     历史对话上下文：
-    ${context.map(msg => `${msg.role === 'user' ? '用户' : '助手'}: ${msg.content}`).join('\n')}
+    ${context
+      .map((msg) => `${msg.role === "user" ? "用户" : "助手"}: ${msg.content}`)
+      .join("\n")}
     `
-		: ''
+    : "";
 
-	return `你是一位专业的知识库助手，请以自然、专业和友好的方式回答用户的问题。
+  return `你是一位专业的知识库助手，请以自然、专业和友好的方式回答用户的问题。
 
     在回答时请遵循以下原则：
     1. 回答质量
@@ -34,5 +36,5 @@ export const getSystemPrompt = (initialResults, context) => {
     ${initialResults}
     
     历史对话的上下文：
-    ${contextSection}`
-}
+    ${contextSection}`;
+};

@@ -17,13 +17,8 @@
 		"storage",
 		"scripting",
 		"sidePanel",
-		"commands",
-		"contextMenus",
-		"activeTab",
 		"tabs",
 		"desktopCapture",
-		"downloads",
-		"scripting",
 		"activeTab"
 	],
 	"background": {
@@ -51,15 +46,5 @@
 			"resources": ["status.html", "status.js", "index.css", "welcome.html", "inject.js"],
 			"matches": ["<all_urls>"]
 		}
-	],
-	
-	"commands": {
-		"toggle-sidebar": {
-			"suggested_key": {
-				"default": "Ctrl+Shift+S",
-				"mac": "Command+Shift+S"
-			},
-			"description": "打开/关闭侧边栏"
-		}
-	}
+	]
 }

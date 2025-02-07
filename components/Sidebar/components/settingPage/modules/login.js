@@ -1,8 +1,8 @@
 import React, { useCallback, useState } from "react";
-import { Logo } from "../modules/logo";
-import { useCountdown } from "../hooks/useCountdown";
-import { getCode, login } from "../service/login";
-import { saveUserInput } from "../../../public/storage";
+import { Logo } from "./logo";
+import { useCountdown } from "../../../../Welcome/hooks/useCountdown";
+import { getCode, login } from "../../../../Welcome/service/login";
+import { saveUserInput } from "../../../../../public/storage";
 
 const tiltShakeAnimation = `@keyframes tilt-shake {
   0% { transform: rotate(0deg); }
@@ -16,7 +16,7 @@ const tiltShakeAnimation = `@keyframes tilt-shake {
   100% { transform: rotate(0deg); }
 }`;
 
-export default function First({ onNext, apiKey, setApiKey }) {
+const Login = () => {
   const [countdown, startCountdown] = useCountdown(0);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -72,8 +72,6 @@ export default function First({ onNext, apiKey, setApiKey }) {
 
         if (data && data.access_token) {
           await saveUserInput(data.access_token);
-          setApiKey(data.access_token);
-          onNext();
         } else {
           throw new Error("登录返回数据格式错误");
         }
@@ -84,21 +82,21 @@ export default function First({ onNext, apiKey, setApiKey }) {
         setLoading(false);
       }
     },
-    [email, code, loading, setApiKey, onNext]
+    [email, code, loading]
   );
 
   return (
-    <div className="w-full">
+    <div className="w-full min-h-screen flex items-center justify-center py-12">
       <style>{tiltShakeAnimation}</style>
-      <div className="flex flex-col justify-center">
-        <div className="w-full max-w-md">
+      <div className="flex flex-col items-center justify-center w-full max-w-md px-6 my-auto">
+        <div className="w-full flex flex-col items-center">
           <Logo className="h-12 w-auto" />
-          <h2 className="mt-8 text-2xl font-semibold text-gray-900">
+          <h2 className="mt-8 text-2xl font-semibold text-gray-900 text-center">
             登录您的账户
           </h2>
         </div>
 
-        <div className="mt-8 w-full max-w-md">
+        <div className="mt-8 w-full">
           <form className="space-y-5" onSubmit={handleSubmit}>
             {error && (
               <div className="rounded-lg bg-red-50 p-4 text-sm text-red-500">
@@ -207,4 +205,6 @@ export default function First({ onNext, apiKey, setApiKey }) {
       </div>
     </div>
   );
-}
+};
+
+export { Login };

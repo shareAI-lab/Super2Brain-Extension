@@ -2,20 +2,18 @@ const loadingButtonContent = `
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="memfree-loader animate-spin"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`;
 
 (function () {
-  // 检查是否已经注入，避免重复注入
   if (window._sidebarInjected) return;
   window._sidebarInjected = true;
 
   // 添加消息监听器，用于跨标签页通信
-  window.addEventListener('message', function(event) {
-    if (event.data.type === 'SIDEBAR_ACTION') {
-      chrome.runtime.sendMessage({ action: 'openSidebar' });
+  window.addEventListener("message", function (event) {
+    if (event.data.type === "SIDEBAR_ACTION") {
+      chrome.runtime.sendMessage({ action: "openSidebar" });
     }
   });
 
-  // 注册全局函数，供其他页面调用
-  window.openSuperBrainSidebar = function() {
-    window.postMessage({ type: 'SIDEBAR_ACTION' }, '*');
+  window.openSuperBrainSidebar = function () {
+    window.postMessage({ type: "SIDEBAR_ACTION" }, "*");
   };
 
   if (document.getElementById("send-url-button")) return;
@@ -24,26 +22,8 @@ const loadingButtonContent = `
   button.id = "send-url-button";
   button.className = "flot-btn";
 
-  // 修改初始检查token的方式
-  chrome.storage.local.get(["Super2BrainToken"], (result) => {
-    button.disabled = !result.Super2BrainToken;
-    updateButtonStyle(button);
-  });
-
-  // 可以改为：
-  const checkToken = async () => {
-    const token = await getUserInput();
-    button.disabled = !token;
-    updateButtonStyle(button);
-  };
-  checkToken();
-
-  chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "local" && changes.Super2BrainToken) {
-      button.disabled = !changes.Super2BrainToken.newValue;
-      updateButtonStyle(button);
-    }
-  });
+  // 移除token检查相关代码
+  button.disabled = false;
 
   const svgButtonContent = `
 		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 50px; height: 50px;">
@@ -130,11 +110,6 @@ const loadingButtonContent = `
 
       extractMarkdown(window.location.href)
         .then(async function (markdown) {
-          const token = await getUserInput();
-          if (!token) {
-            throw new Error("No token available");
-          }
-
           const taskListResult = await new Promise((resolve) => {
             chrome.storage.local.get(["taskList"], resolve);
           });
@@ -148,7 +123,6 @@ const loadingButtonContent = `
             action: "sendURL",
             data: {
               url: window.location.href,
-              token: token,
               markdown: markdown,
               title: document.title,
             },
@@ -157,18 +131,14 @@ const loadingButtonContent = `
         .then(function (response) {
           if (response.ok) {
             showAlert(
-              '该网页已加入任务队列！<br>您可以在插件中查看任务状态，任务完成后可在 <a href="https://x.super2brain.com" target="_blank">Super2Brain</a> 中查看结果'
+              '该网页已加入任务队列！<br>您可以在插件中查看任务状态，任务完成后可在 <a href="er2brain.com" target="_blank">Super2Brain</a> 中查看结果'
             );
           } else {
             throw new Error("Failed to send URL");
           }
         })
         .catch(function (error) {
-          if (error.message === "No token available") {
-            showAlert(
-              '请先在插件中设置 api-key,如果没有api-key请先在 <a href="https://x.super2brain.com" target="_blank">Super2Brain</a> 中注册账号并获取 api-key'
-            );
-          } else if (error.message === "Task already exists") {
+          if (error.message === "Task already exists") {
             showAlert("该网页已导入成功，请勿重复导入！");
           } else {
             console.error("Error processing page:", error);

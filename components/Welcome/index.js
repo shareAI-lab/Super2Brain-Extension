@@ -1,23 +1,18 @@
 import StepBar from "./modules/StepBar";
 import React from "react";
-import { ArrowRight } from "lucide-react";
 import First from "./step/First";
 import Second from "./step/Second";
 import SecondRight from "./step/SecondRight";
 import FirstRight from "./step/FirstRight";
-import { saveUserInput } from "../../public/storage";
+
 import PinExtension from "./step/PinExtension";
 import PinExtensionRight from "./step/PinExtensionRight";
 
 export default function WelcomeCom() {
   const [currentStep, setCurrentStep] = React.useState(1);
   const [apiKey, setApiKey] = React.useState("");
-
+  
   const handleStepChange = async (step) => {
-    if (currentStep === 1) {
-      if (!apiKey) return;
-      await saveUserInput(apiKey);
-    }
     if (step > 3) {
       window.close();
       return;
@@ -36,7 +31,9 @@ export default function WelcomeCom() {
           />
         );
       case 2:
-        return <PinExtension onNext={() => handleStepChange(currentStep + 1)} />;
+        return (
+          <PinExtension onNext={() => handleStepChange(currentStep + 1)} />
+        );
       case 3:
         return <Second onNext={() => handleStepChange(currentStep + 1)} />;
       default:
@@ -60,9 +57,13 @@ export default function WelcomeCom() {
         </div>
       </div>
       <div className="w-[60%] bg-[#dcecf7] p-8">
-        {currentStep === 3 ? <SecondRight /> : 
-         currentStep === 2 ? <PinExtensionRight /> : 
-         <FirstRight />}
+        {currentStep === 3 ? (
+          <SecondRight />
+        ) : currentStep === 2 ? (
+          <PinExtensionRight />
+        ) : (
+          <FirstRight />
+        )}
       </div>
     </div>
   );

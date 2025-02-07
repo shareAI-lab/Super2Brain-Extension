@@ -29,6 +29,19 @@
 
 ### 开始使用
 
+环境变量
+
+`components/config/index.js`
+
+```js
+export const config = {
+  token: "", // 调用后端接口的 token
+  baseUrl: "", // 调用后端接口的 url
+  modelUrl: "", // https://example.com 不需要到 v1
+  apiKey: "", // 调用 AI 的 api key
+};
+```
+
 1. 克隆项目
 
 ```bash

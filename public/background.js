@@ -179,8 +179,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         await keepAlive(true);
-        const endpoint =
-          "https://api.super2brain.com/common/tasks/content-note";
+        const endpoint = "https://s2bapi.zima.pet/common/tasks/content-note";
 
         const response = await fetch(endpoint, {
           method: "POST",
@@ -233,12 +232,13 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'OPEN_MINDMAP') {
+  if (message.type === "OPEN_MINDMAP") {
     chrome.tabs.create({
-      url: chrome.runtime.getURL('mindmap.html') + 
-           `?prompt=${encodeURIComponent(message.payload.prompt)}` +
-           `&url=${encodeURIComponent(message.payload.url)}` +
-           `&title=${encodeURIComponent(message.payload.title)}`
+      url:
+        chrome.runtime.getURL("mindmap.html") +
+        `?prompt=${encodeURIComponent(message.payload.prompt)}` +
+        `&url=${encodeURIComponent(message.payload.url)}` +
+        `&title=${encodeURIComponent(message.payload.title)}`,
     });
   }
 });
@@ -252,66 +252,167 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "CAPTURE_SCREENSHOT") {
     captureVisibleTab()
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ success: false, error: error.message }));
     return true; // 保持消息通道打开
   }
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'CAPTURE_SELECTED_AREA') {
+  if (request.type === "CAPTURE_SELECTED_AREA") {
     (async () => {
       try {
         const tab = sender.tab;
         const { x, y, width, height, devicePixelRatio } = request.payload;
-        
+
         // 捕获整个可见区域
         const dataUrl = await chrome.tabs.captureVisibleTab(null, {
-          format: 'png'
+          format: "png",
         });
-        
+
         // 创建离屏 canvas
         const offscreenCanvas = new OffscreenCanvas(
           width * devicePixelRatio,
           height * devicePixelRatio
         );
-        const ctx = offscreenCanvas.getContext('2d');
-        
+        const ctx = offscreenCanvas.getContext("2d");
+
         // 创建位图
         const response = await fetch(dataUrl);
         const blob = await response.blob();
         const bitmap = await createImageBitmap(blob);
-        
+
         // 裁剪指定区域
-        ctx.drawImage(bitmap,
-          x * devicePixelRatio, y * devicePixelRatio,
-          width * devicePixelRatio, height * devicePixelRatio,
-          0, 0,
-          width * devicePixelRatio, height * devicePixelRatio
+        ctx.drawImage(
+          bitmap,
+          x * devicePixelRatio,
+          y * devicePixelRatio,
+          width * devicePixelRatio,
+          height * devicePixelRatio,
+          0,
+          0,
+          width * devicePixelRatio,
+          height * devicePixelRatio
         );
-        
+
         // 转换为 blob
         const croppedBlob = await offscreenCanvas.convertToBlob({
-          type: 'image/png'
+          type: "image/png",
         });
-        
+
         // 转换为 base64
         const reader = new FileReader();
         reader.readAsDataURL(croppedBlob);
         reader.onloadend = () => {
           // 发送消息给 content script
           chrome.tabs.sendMessage(tab.id, {
-            type: 'SCREENSHOT_CAPTURED',
+            type: "SCREENSHOT_CAPTURED",
             payload: {
-              dataUrl: reader.result
-            }
+              dataUrl: reader.result,
+            },
           });
         };
-        
       } catch (error) {
-        console.error('截图失败:', error);
+        console.error("截图失败:", error);
       }
     })();
     return true;
+  }
+});
+
+async function extractPageContent(url) {
+  try {
+    if (url.startsWith("chrome://") || url.startsWith("chrome-extension://")) {
+      console.log("不支持获取插件页面内容:", url);
+      return { url, content: "" };
+    }
+
+    console.log("正在创建新标签页:", url);
+    const tab = await chrome.tabs.create({ 
+      url, 
+      active: false 
+    });
+    console.log("标签页已创建:", tab.id);
+
+    // 创建一个超时 Promise
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("页面加载超时(30秒)")), 30000);
+    });
+
+    // 等待页面加载完成的 Promise
+    const pageLoad = new Promise((resolve) => {
+      chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+        if (tabId === tab.id && info.status === "complete") {
+          console.log("页面加载完成:", tab.id);
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
+        }
+      });
+    });
+
+    try {
+      // 使用 Promise.race 竞争加载和超时
+      await Promise.race([pageLoad, timeout]);
+      
+      // 确保页面完全加载后再执行脚本
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      console.log("开始执行内容提取:", tab.id);
+      const content = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          try {
+            const turndownService = new TurndownService();
+            const reader = new Readability(document.cloneNode(true), {
+              charThreshold: 0,
+              keepClasses: true,
+              nbTopCandidates: 10,
+            });
+            const article = reader.parse();
+            return turndownService.turndown(article?.content || "");
+          } catch (error) {
+            console.error("Content extraction error:", error);
+            return "";
+          }
+        },
+      });
+
+      return { url, content: content[0]?.result || "" };
+    } catch (error) {
+      console.error(`页面处理失败: ${error.message}`);
+      return { url, content: "" };
+    } finally {
+      // 无论成功还是失败，都确保关闭标签页
+      console.log("准备关闭标签页:", tab.id);
+      await chrome.tabs.remove(tab.id);
+    }
+  } catch (error) {
+    console.error("提取页面内容时出错:", error, "URL:", url);
+    return { url, content: "" };
+  }
+}
+
+async function extractMultiplePages(urls) {
+  try {
+    // 并行处理所有URL
+    const results = await Promise.all(
+      urls.map((url) => extractPageContent(url))
+    );
+
+    // 过滤掉空内容的结果
+    return results.filter((result) => result.content);
+  } catch (error) {
+    console.error("批量提取内容时出错:", error);
+    return [];
+  }
+}
+
+// 监听来自 sidepanel 的消息
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "extractMultipleContents") {
+    extractMultiplePages(message.urls)
+      .then((contents) => sendResponse({ success: true, contents }))
+      .catch((error) => sendResponse({ success: false, error: error.message }));
+    return true; // 表示会异步发送响应
   }
 });

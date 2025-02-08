@@ -2,19 +2,22 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { SettingPage } from "./components/settingPage";
 import { ActivateBar } from "./components/common/activateBar";
 import { NotesSearch } from "./components/notesPage";
-import { getItem } from "../../public/storage";
+import { getItem, getUserInput } from "../../public/storage";
 import { callAI, MessageRole } from "./services/ai";
 import { AI_MODELS } from "./config/models";
 import { WelcomePage } from "./components/welcomePage";
-import { fetchUrlContent } from "./utils/chat";
+import { fetchUrlContent, fetchCriticalAnalysis } from "./utils/chat";
 import { ActivateTabChatPanel } from "./components/activateTab";
 import { NetworkSearch } from "./components/networkPage";
 import { processContent } from "./utils/contentProcessor";
+import { config } from "../config/index.js";
+import { getWebPreview } from "../../public/storage";
 
 export default function Sidebar() {
   const [activatePage, setActivatePage] = useState(0);
   const [currentUrl, setCurrentUrl] = useState("");
-
+  const [pageCriticalAnalysis, setPageCriticalAnalysis] = useState("");
+  const [userInput, setUserInput] = useState("");
   const [pageContent, setPageContent] = useState("");
   const [pageSummary, setPageSummary] = useState("");
   const [pageLoading, setPageLoading] = useState(false);
@@ -24,9 +27,39 @@ export default function Sidebar() {
   const [pageSystemMessage, setPageSystemMessage] = useState("");
   const thinkingStateRef = useRef(new Map());
   const [summaryCache, setSummaryCache] = useState(new Map());
+  const [criticalAnalysisCache, setCriticalAnalysisCache] = useState(new Map());
   const [loadingUrls, setLoadingUrls] = useState(new Map());
+  const [isContentReady, setIsContentReady] = useState(true);
+  const [webPreview, setWebPreview] = useState(false);
 
   useEffect(() => {
+    const fetchWebPreview = async () => {
+      const webPreview = await getWebPreview();
+      console.log("🔄 网页速览:", webPreview);
+      setWebPreview(webPreview);
+    };
+    fetchWebPreview();
+  }, []);
+
+  useEffect(() => {
+    const fetchUserInput = async () => {
+      const input = await getUserInput();
+
+      setUserInput(input);
+    };
+
+    fetchUserInput();
+  }, []);
+
+  useEffect(() => {
+    if (!webPreview) {
+      return;
+    }
+
+    if (!userInput?.trim()) {
+      return;
+    }
+
     const shouldSkipFetch = (url, content) => {
       const isLoading = loadingUrls.get(url);
       const hasSummary = summaryCache.get(url);
@@ -36,9 +69,11 @@ export default function Sidebar() {
 
     const handleExistingSummary = (url) => {
       const summary = summaryCache.get(url);
-      if (summary) {
+      const criticalAnalysis = criticalAnalysisCache.get(url);
+      if (summary && criticalAnalysis) {
         setPageLoading(false);
         setPageSummary(summary);
+        setPageCriticalAnalysis(criticalAnalysis);
         return true;
       }
       return false;
@@ -49,8 +84,13 @@ export default function Sidebar() {
         setPageLoading(true);
         setLoadingUrls((prev) => new Map(prev).set(url, true));
         const summary = await fetchUrlContent(content);
+        const criticalAnalysis = await fetchCriticalAnalysis(content);
         setSummaryCache((prev) => new Map(prev).set(url, summary));
+        setCriticalAnalysisCache((prev) =>
+          new Map(prev).set(url, criticalAnalysis)
+        );
         setPageSummary(summary);
+        setPageCriticalAnalysis(criticalAnalysis);
       } catch (error) {
         console.error("获取摘要失败:", error);
       } finally {
@@ -65,12 +105,15 @@ export default function Sidebar() {
     ) {
       fetchSummary(currentUrl, pageContent);
     }
-  }, [currentUrl, pageContent]);
+  }, [currentUrl, pageContent, userInput, webPreview, setWebPreview]);
 
   const [settings, setSettings] = useState({
+    super2brain: {
+      baseUrl: config.modelUrl || "",
+      apiKey: config.apiKey || "",
+    },
     deepseek: {
       baseUrl: "",
-
       apiKey: "",
     },
     openai: {
@@ -84,6 +127,10 @@ export default function Sidebar() {
   });
 
   const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+  const [selectedModelProvider, setSelectedModelProvider] =
+    useState("super2brain");
+  const [selectedModelIsSupportsImage, setSelectedModelIsSupportsImage] =
+    useState(true);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
 
   const fetchDeepSeekConfig = async () => {
@@ -98,6 +145,10 @@ export default function Sidebar() {
       ]);
 
       setSettings((prev) => ({
+        super2brain: {
+          baseUrl: config.modelUrl || "",
+          apiKey: config.apiKey || "",
+        },
         deepseek: {
           baseUrl: configs[0] || "",
           apiKey: configs[1] || "",
@@ -174,6 +225,34 @@ export default function Sidebar() {
 
         const url = tab?.url ?? "";
 
+        const checkContentScriptReady = async (tabId) => {
+          try {
+            const response = await new Promise((resolve, reject) => {
+              chrome.tabs.sendMessage(tabId, { type: "PING" }, (response) => {
+                if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                } else {
+                  resolve(response);
+                }
+              });
+            });
+            return response?.status === "ok";
+          } catch (error) {
+            console.log("Content script 未就绪:", error);
+            return false;
+          }
+        };
+
+        const isReady = await checkContentScriptReady(tab.id);
+        setIsContentReady(isReady);
+
+        if (!isReady) {
+          console.log("等待 content script 就绪...");
+          setPageContent("页面加载中，请稍后重试...");
+          setTimeout(() => updateUrlAndContent(), 1000);
+          return;
+        }
+
         if (url !== currentUrl) {
           setCurrentUrl(url);
           setPageSystemMessage("");
@@ -181,7 +260,9 @@ export default function Sidebar() {
           thinkingStateRef.current.set(url, false);
           setPageContent("");
           const summary = summaryCache.get(url) ?? "";
+          const criticalAnalysis = criticalAnalysisCache.get(url) ?? "";
           setPageSummary(summary);
+          setPageCriticalAnalysis(criticalAnalysis);
         }
 
         if (
@@ -304,6 +385,7 @@ export default function Sidebar() {
         thinkingStateRef.current.set(currentUrl, true);
 
         const selectedModelConfig = AI_MODELS[selectedModel];
+
         if (!selectedModelConfig) {
           throw new Error(`未找到模型配置: ${selectedModel}`);
         }
@@ -316,13 +398,15 @@ export default function Sidebar() {
           ...getCurrentUrlMessages(),
           ...processedMessages,
         ];
-
+        console.log("🔄 当前消息:", selectedModelProvider);
+        console.log("🔄 当前消息:", settings[selectedModelProvider].baseUrl);
         const response = await callAI({
           provider: selectedModelConfig.provider,
-          baseUrl: settings[selectedModelConfig.provider].baseUrl,
-          apiKey: settings[selectedModelConfig.provider].apiKey,
+          baseUrl: settings[selectedModelProvider].baseUrl,
+          apiKey: settings[selectedModelProvider].apiKey,
           model: selectedModel,
           messages: currentMessages,
+
           options: {
             temperature: 0.7,
             maxTokens: 2000,
@@ -373,7 +457,6 @@ export default function Sidebar() {
 
       const messages = getCurrentUrlMessages();
 
-      // 使用函数式方法获取用户消息
       const getUserMessage = (messages, messageId) =>
         messages[messageId - 1]?.role === "user"
           ? messages[messageId - 1]
@@ -415,15 +498,25 @@ export default function Sidebar() {
         {activatePage === 0 ? (
           <div className="flex-1">
             <WelcomePage
+              webPreview={webPreview}
+              userInput={userInput}
               key={currentUrl}
               currentUrl={currentUrl}
               pageContent={pageContent}
               pageLoading={pageLoading}
               pageSummary={pageSummary}
+              pageCriticalAnalysis={pageCriticalAnalysis}
+              setActivatePage={setActivatePage}
             />
           </div>
         ) : activatePage === 1 ? (
           <ActivateTabChatPanel
+            useInput={userInput}
+            isContentReady={isContentReady}
+            selectedModelProvider={selectedModelProvider}
+            selectedModelIsSupportsImage={selectedModelIsSupportsImage}
+            setSelectedModelProvider={setSelectedModelProvider}
+            setSelectedModelIsSupportsImage={setSelectedModelIsSupportsImage}
             getCurrentUrlMessages={getCurrentUrlMessages}
             isAiThinking={isAiThinking}
             copiedMessageId={copiedMessageId}
@@ -441,11 +534,17 @@ export default function Sidebar() {
           </div>
         ) : activatePage === 3 ? (
           <div>
-            <NotesSearch />
+            <NotesSearch
+              useInput={userInput}
+              setActivatePage={setActivatePage}
+            />
           </div>
         ) : activatePage === 4 ? (
           <div>
-            <SettingPage />
+            <SettingPage
+              webPreview={webPreview}
+              setWebPreview={setWebPreview}
+            />
           </div>
         ) : null}
       </div>

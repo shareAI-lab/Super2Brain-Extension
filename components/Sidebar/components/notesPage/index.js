@@ -14,8 +14,9 @@ import { RelatedDocs } from "./modules/RelatedDocs.js";
 import { RelatedQuestions } from "./modules/RelatedQuestions.js";
 import { Tooltip } from "react-tooltip";
 import { super2brainModel } from "../../config/models.js";
+import { PlaceHolder } from "./modules/placeHolder.js";
 
-const NotesSearch = () => {
+const NotesSearch = ({ useInput, setActivatePage }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [model, setModel] = useState("gpt-4");
   const [query, setQuery] = useState("");
@@ -24,6 +25,7 @@ const NotesSearch = () => {
   const [expandedDocs, setExpandedDocs] = useState({});
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const handleSubmit = async () => {
+    if (!useInput) return;
     if (!query.trim() || loading) return;
 
     const userMessage = {
@@ -227,101 +229,103 @@ const NotesSearch = () => {
 
   return (
     <div
-      className="w-full h-[calc(100vh-24px)] rounded-xl flex flex-col bg-white !bg-white"
+      className="w-full h-[calc(100vh-8px)] rounded-xl flex flex-col bg-white !bg-white"
       style={{ backgroundColor: "white" }}
     >
-      {/* 可滚动的问答区域 */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 p-2 space-y-4">
-        {messages.map((message) => (
-          <div key={message.id} className="space-y-2">
-            <div
-              className={`${
-                message.isUser
-                  ? "text-blue-600 flex justify-end"
-                  : "text-gray-800"
-              }`}
-            >
-              {message.isUser ? (
-                <div className="text-sm whitespace-pre-wrap bg-blue-100 rounded-lg p-2 max-w-[80%]">
-                  {message.content}
-                </div>
-              ) : (
-                <div className="max-w-[80%] bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white p-3">
-                    <div className="flex items-center gap-2">
-                      <Bot className="w-5 h-5 text-indigo-600" />
-                      <span className="font-medium text-indigo-600">
-                        {model}:
-                      </span>
-                    </div>
+      {!useInput ? (
+        <PlaceHolder setActivatePage={setActivatePage} />
+      ) : (
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 p-2 space-y-4">
+          {messages.map((message) => (
+            <div key={message.id} className="space-y-2">
+              <div
+                className={`${
+                  message.isUser
+                    ? "text-blue-600 flex justify-end"
+                    : "text-gray-800"
+                }`}
+              >
+                {message.isUser ? (
+                  <div className="text-sm whitespace-pre-wrap bg-blue-100 rounded-lg p-2 max-w-[80%]">
+                    {message.content}
                   </div>
+                ) : (
+                  <div className="max-w-[80%] bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white p-3">
+                      <div className="flex items-center gap-2">
+                        <Bot className="w-5 h-5 text-indigo-600" />
+                        <span className="font-medium text-indigo-600">
+                          {model}:
+                        </span>
+                      </div>
+                    </div>
 
-                  {message.isComplete && (
-                    <div className="p-4">
-                      {renderMarkdown(message.content)}
-                      <div className="flex justify-between items-start mt-2">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() =>
-                              handleCopy(message.content, message.id)
-                            }
-                            className="p-1 hover:bg-gray-100 rounded-md"
-                            title="复制内容"
-                          >
-                            {copiedMessageId === message.id ? (
-                              <Check className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <Copy className="w-4 h-4 text-gray-500" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleRegenerate(message.id)}
-                            className="p-1 hover:bg-gray-100 rounded-md"
-                            title="重新生成"
-                          >
-                            <RotateCw className="w-4 h-4 text-gray-500" />
-                          </button>
+                    {message.isComplete && (
+                      <div className="p-4">
+                        {renderMarkdown(message.content)}
+                        <div className="flex justify-between items-start mt-2">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() =>
+                                handleCopy(message.content, message.id)
+                              }
+                              className="p-1 hover:bg-gray-100 rounded-md"
+                              title="复制内容"
+                            >
+                              {copiedMessageId === message.id ? (
+                                <Check className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <Copy className="w-4 h-4 text-gray-500" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleRegenerate(message.id)}
+                              className="p-1 hover:bg-gray-100 rounded-md"
+                              title="重新生成"
+                            >
+                              <RotateCw className="w-4 h-4 text-gray-500" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {!message.isComplete && (
-                    <div className="flex items-center space-x-2 p-3 bg-gray-50">
-                      <div className="animate-pulse flex space-x-1">
-                        <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
-                        <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
-                        <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
+                    {!message.isComplete && (
+                      <div className="flex items-center space-x-2 p-3 bg-gray-50">
+                        <div className="animate-pulse flex space-x-1">
+                          <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
+                          <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
+                          <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!message.isUser && message.related?.length > 0 && (
+                <RelatedDocs
+                  message={message}
+                  expandedDocs={expandedDocs}
+                  onToggleExpand={() => {
+                    setExpandedDocs((prev) => ({
+                      ...prev,
+                      [`${message.id}-docs`]: !prev[`${message.id}-docs`],
+                    }));
+                  }}
+                />
+              )}
+
+              {!message.isUser && message.isComplete && (
+                <div className="flex items-center gap-2">
+                  <RelatedQuestions message={message} setQuery={setQuery} />
                 </div>
               )}
             </div>
+          ))}
+        </div>
+      )}
 
-            {!message.isUser && message.related?.length > 0 && (
-              <RelatedDocs
-                message={message}
-                expandedDocs={expandedDocs}
-                onToggleExpand={() => {
-                  setExpandedDocs((prev) => ({
-                    ...prev,
-                    [`${message.id}-docs`]: !prev[`${message.id}-docs`],
-                  }));
-                }}
-              />
-            )}
-
-            {!message.isUser && message.isComplete && (
-              <div className="flex items-center gap-2">
-                <RelatedQuestions message={message} setQuery={setQuery} />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* 修改底部输入区域 */}
       <div className="flex-shrink-0 bg-white p-2">
         <div className="relative">
           <div className="flex items-center gap-2 justify-between">
@@ -373,7 +377,7 @@ const NotesSearch = () => {
                   flex items-center justify-center
                   transition-all duration-200
                   ${
-                    !query.trim() || loading
+                    !query.trim() || loading || !useInput
                       ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                       : "bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200"
                   }
@@ -388,12 +392,11 @@ const NotesSearch = () => {
                 anchorSelect=".button-tag-send"
                 place="top"
               >
-                发送
+                {!useInput ? "请先登录" : "发送"}
               </Tooltip>
             </div>
           </div>
 
-          {/* Model selector */}
           {isOpen && (
             <div className="absolute bg-white border border-gray-200 rounded-xl shadow-lg z-10 bottom-full w-[160px] overflow-hidden">
               <div className="py-1.5">
@@ -426,14 +429,14 @@ const NotesSearch = () => {
           )}
 
           <div
-            className="relative rounded-md bg-white outline outline-1 -outline-offset-1 outline-gray-300 
+            className="relative rounded-xl bg-white outline outline-1 -outline-offset-1 outline-gray-300 
             focus-within:outline focus-within:outline-2 focus-within:-outline-offset-2
             focus-within:outline-indigo-600 mt-2"
           >
             <textarea
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="block w-full rounded-md bg-white px-3 py-1.5 text-base 
+              className="block w-full rounded-xl bg-white px-3 py-1.5 text-base 
               text-gray-900 outline-none resize-none h-24
               placeholder:text-gray-400 sm:text-sm/6"
               placeholder="请输入您的问题..."

@@ -154,6 +154,7 @@ export const useMessageHandler = (thinkingAgent, model) => {
                     !result.url.startsWith("chrome-extension://")
                 );
 
+              console.log("processUrls", processUrls);
               const urlListData = processUrls.map((result, index) => ({
                 id: index,
                 content: result.title,

@@ -25,20 +25,6 @@ export const createTags = ({ currentModelSupportsImage }) => [
     disabled: !currentModelSupportsImage,
   },
   {
-    text: "总结网页",
-    prompt: "请帮我总结这篇文章的主要内容",
-    icon: FileText,
-    type: "summary",
-    disabled: false,
-  },
-  {
-    text: "生成摘要",
-    prompt: "请生成这篇文章的简短摘要，包含关键信息",
-    icon: FileDigit,
-    type: "digest",
-    disabled: false,
-  },
-  {
     text: "收藏网页到知识库",
     icon: Star,
     type: "bookmark",

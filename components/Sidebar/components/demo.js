@@ -1,13 +1,13 @@
 import { Plus, Send } from "lucide-react";
 import { Tooltip } from "react-tooltip";
 import { useState, useMemo } from "react";
-import { super2brainModel } from "../../config/models.js";
-import { createThingAgent } from "./utils/thingAgent.js";
-import { useMessageHandler } from "../../hooks/useMessageHandler";
-import { MessageRenderer } from "./modules/MessageRenderer";
-import { ModelSelector } from "./modules/ModelSelector.js";
-import { config } from "../../../config";
-const NetworkSearch = () => {
+import { super2brainModel } from "../config/models.js";
+import { createThingAgent } from "../utils/demo/thingAgent.js";
+import { useMessageHandler } from "../hooks/useMessageHandler";
+import { MessageRenderer } from "../components/MessageRenderer";
+import { ModelSelector } from "../components/ModelSelector";
+
+const Demo = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
@@ -15,8 +15,8 @@ const NetworkSearch = () => {
   const thinkingAgent = useMemo(
     () =>
       createThingAgent({
-        apiKey: config.apiKey,
-        baseURL: `${config.modelUrl}/v1`,
+        apiKey: "sk-OSqhqCm1DoE24Kf0E2796eAeE75b484d9f08CbD779E7870a",
+        baseURL: "https://openai.super2brain.com/v1",
         model: selectedModel,
       }),
     [selectedModel]
@@ -26,7 +26,6 @@ const NetworkSearch = () => {
     thinkingAgent,
     selectedModel
   );
-
   const model = super2brainModel[selectedModel]?.id || "选择模型";
 
   const handleModelSelect = (modelId) => {
@@ -51,7 +50,7 @@ const NetworkSearch = () => {
   };
 
   return (
-    <div className="w-full h-[calc(100vh-8px)] rounded-xl flex flex-col bg-white">
+    <div className="w-full h-[calc(100vh-24px)] rounded-xl flex flex-col bg-white">
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 p-2 space-y-4">
         <MessageRenderer messages={message} />
       </div>
@@ -136,4 +135,4 @@ const NetworkSearch = () => {
   );
 };
 
-export { NetworkSearch };
+export { Demo };

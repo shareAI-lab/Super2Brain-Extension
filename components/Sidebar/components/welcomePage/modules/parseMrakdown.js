@@ -1,5 +1,5 @@
 import { Sparkles, Diamond, ChevronRight } from "lucide-react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { marked } from "marked";
 
 const titleStyles = {
@@ -10,53 +10,71 @@ const titleStyles = {
 };
 
 const parseMarkdown = (content) => {
-  const parseLine = (line) => ({
-    isH1: line.startsWith("# "),
-    isH2: line.startsWith("## "),
-    isListItem: line.startsWith("- "),
-    content: line.replace(/^[#\-\s]+/, "").trim(),
+  const parseLineContent = (line) => line.replace(/^[#\-\s]+/, "").trim();
+
+  const categorizeLines = (line) => ({
+    type: line.startsWith("# ")
+      ? "h1"
+      : line.startsWith("## ")
+      ? "h2"
+      : line.startsWith("- ")
+      ? "list"
+      : "text",
+    content: parseLineContent(line),
   });
 
-  const groupBySection = (acc, line) => {
-    const { isH1, isH2, isListItem, content } = parseLine(line);
+  const buildStructure = (lines) =>
+    lines.reduce((structure, line) => {
+      const { type, content } = categorizeLines(line);
 
-    if (isH1) {
-      acc.push({ type: "h1", title: content, children: [] });
-      return acc;
-    }
-
-    if (!acc.length) {
-      acc.push({ type: "h1", title: "未分类", children: [] });
-    }
-
-    const currentSection = acc[acc.length - 1];
-
-    if (isH2) {
-      currentSection.children.push({ type: "h2", title: content, content: [] });
-      return acc;
-    }
-
-    if (isListItem) {
-      if (!currentSection.children.length) {
-        currentSection.children.push({ type: "h2", title: "", content: [] });
+      if (!structure.length && type !== "h1") {
+        structure.push({ type: "h1", title: "未分类", children: [] });
       }
-      const lastH2 =
-        currentSection.children[currentSection.children.length - 1];
-      lastH2.content.push(content);
-    }
 
-    return acc;
-  };
+      const currentSection = structure[structure.length - 1];
 
-  return content
-    .split("\n")
-    .filter((line) => line.trim())
-    .reduce(groupBySection, []);
+      switch (type) {
+        case "h1":
+          structure.push({ type: "h1", title: content, children: [] });
+          break;
+        case "h2":
+          if (currentSection) {
+            currentSection.children.push({
+              type: "h2",
+              title: content,
+              content: [],
+            });
+          }
+          break;
+        case "list":
+          if (currentSection) {
+            const lastH2 = currentSection.children[
+              currentSection.children.length - 1
+            ] || { type: "h2", title: "", content: [] };
+
+            if (!currentSection.children.length) {
+              currentSection.children.push(lastH2);
+            }
+
+            lastH2.content.push(content);
+          }
+          break;
+      }
+
+      return structure;
+    }, []);
+
+  const lines = content.split("\n").filter(Boolean);
+  return buildStructure(lines);
 };
 
-const ListItem = memo(({ content }) => (
+const ListItem = memo(({ content, theme = "blue" }) => (
   <li className="text-gray-600 mb-2 flex items-start gap-2 text-sm">
-    <ChevronRight className="w-3 h-3 mt-1 text-blue-400" />
+    <ChevronRight
+      className={`w-3 h-3 mt-1 ${
+        theme === "red" ? "text-red-400" : "text-blue-400"
+      }`}
+    />
     <span
       className="flex-1"
       dangerouslySetInnerHTML={{ __html: marked.parseInline(content) }}
@@ -64,77 +82,64 @@ const ListItem = memo(({ content }) => (
   </li>
 ));
 
-const H1Section = memo(({ title, children = [] }) => (
+const H1Section = memo(({ title, children = [], theme = "blue" }) => (
   <div className="mb-6">
     <h1 className={`${titleStyles.h1} flex items-center gap-2`}>
-      <Sparkles className="w-5 h-5 text-blue-500" strokeWidth={1.5} />
+      <Sparkles
+        className={`w-5 h-5 ${
+          theme === "red" ? "text-red-500" : "text-blue-500"
+        }`}
+        strokeWidth={1.5}
+      />
       {title}
     </h1>
     <div className="pl-6 space-y-4">
       {children.map((h2, idx) => (
-        <H2Section key={idx} {...h2} />
+        <H2Section key={idx} {...h2} theme={theme} />
       ))}
     </div>
   </div>
 ));
 
-const H2Section = memo(({ title, content = [] }) => (
+const H2Section = memo(({ title, content = [], theme = "blue" }) => (
   <div className="relative">
     <div className="absolute left-[-24px] top-0 bottom-0 w-px bg-gray-100" />
     <h2 className={`${titleStyles.h2} flex items-center gap-2`}>
-      <Diamond className="w-4 h-4 text-blue-400" strokeWidth={1.5} />
+      <Diamond
+        className={`w-4 h-4 ${
+          theme === "red" ? "text-red-400" : "text-blue-400"
+        }`}
+        strokeWidth={1.5}
+      />
       {title}
     </h2>
     <ul className="list-none pl-6">
       {content.map((item, idx) => (
-        <ListItem key={idx} content={item} />
+        <ListItem key={idx} content={item} theme={theme} />
       ))}
     </ul>
   </div>
 ));
 
-const H3Section = memo(({ title, children = [] }) => (
-  <div className="mb-6 pl-6 relative">
-    <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-200" />
-    <h3 className={`${titleStyles.h3} flex items-center gap-2`}>
-      <span className="w-3 h-3 bg-blue-500 rounded-full relative">
-        <span className="absolute -left-[1px] top-1/2 h-px w-4 bg-gray-200" />
-      </span>
-      {title}
-    </h3>
-    <div className="pl-4">
-      {children.map((h4, idx) => (
-        <H4Section key={idx} {...h4} />
-      ))}
-    </div>
-  </div>
-));
+const MarkdownRenderer = ({ content = "", criticalAnalysis = "" }) => {
+  const sections = useMemo(
+    () => (content ? parseMarkdown(content) : []),
+    [content]
+  );
 
-const H4Section = memo(({ title, content = [] }) => (
-  <div className="mb-4 pl-6 relative">
-    <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-200" />
-    <h4 className={`${titleStyles.h4} flex items-center gap-2`}>
-      <span className="w-2 h-2 bg-blue-400 rounded-full relative">
-        <span className="absolute -left-[1px] top-1/2 h-px w-4 bg-gray-200" />
-      </span>
-      {title}
-    </h4>
-    <ul className="list-none">
-      {content.map((item, idx) => (
-        <ListItem key={idx} content={item} />
-      ))}
-    </ul>
-  </div>
-));
-
-const MarkdownRenderer = ({ content = "" }) => {
-  const sections = content ? parseMarkdown(content) : [];
+  const analysis = useMemo(
+    () => (criticalAnalysis ? parseMarkdown(criticalAnalysis) : []),
+    [criticalAnalysis]
+  );
 
   return (
-    <div className="w-full h-full bg-white rounded-xl overflow-hidden">
-      <div className="p-8 w-full max-w-full h-full overflow-y-auto">
+    <div className="w-full h-full bg-white rounded-xl">
+      <div className="p-8 w-full">
         {sections.map((section, idx) => (
-          <H1Section key={idx} {...section} />
+          <H1Section key={idx + "sections1"} {...section} theme="blue" />
+        ))}
+        {analysis.map((section, idx) => (
+          <H1Section key={idx + "analysis1"} {...section} theme="red" />
         ))}
       </div>
     </div>

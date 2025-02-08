@@ -5,14 +5,12 @@ const MessageRole = {
   ASSISTANT: "assistant",
 };
 
-// 统一的请求格式
 const createUnifiedRequest = (messages, options = {}) => ({
   messages,
   model: options.model,
   ...options,
 });
 
-// 适配器配置
 const modelAdapters = {
   deepseek: {
     baseUrl: "/v1/chat/completions",
@@ -66,6 +64,27 @@ const modelAdapters = {
         total_tokens:
           response.usage.input_tokens + response.usage.output_tokens,
       },
+    }),
+  },
+  super2brain: {
+    baseUrl: "/v1/chat/completions",
+    transformRequest: (unifiedRequest) => ({
+      model: unifiedRequest.model,
+      messages: unifiedRequest.messages.map((msg) => ({
+        role: msg.role,
+        content:
+          typeof msg.content === "string"
+            ? msg.content
+            : Array.isArray(msg.content)
+            ? msg.content.map((c) => c.text).join("\n")
+            : "",
+      })),
+      temperature: unifiedRequest.temperature ?? 0.7,
+      max_tokens: unifiedRequest.maxTokens,
+    }),
+    transformResponse: (response) => ({
+      content: response.choices[0].message.content,
+      usage: response.usage,
     }),
   },
 };

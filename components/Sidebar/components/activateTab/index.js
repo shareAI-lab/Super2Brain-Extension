@@ -3,6 +3,11 @@ import { ChatMessageList } from "./modules/ChatMessageList";
 import { TextareaRef } from "./modules/textarea";
 
 const ActivateTabChatPanel = ({
+  useInput,
+  selectedModelProvider,
+  selectedModelIsSupportsImage,
+  setSelectedModelProvider,
+  setSelectedModelIsSupportsImage,
   getCurrentUrlMessages,
   isAiThinking,
   copiedMessageId,
@@ -13,6 +18,7 @@ const ActivateTabChatPanel = ({
   currentUrl,
   selectedModel,
   setSelectedModel,
+  isContentReady,
 }) => {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-white rounded-xl">
@@ -27,6 +33,12 @@ const ActivateTabChatPanel = ({
       </div>
       <div className="p-4 bg-white w-full">
         <TextareaRef
+          isContentReady={isContentReady}
+          useInput={useInput}
+          selectedModelProvider={selectedModelProvider}
+          selectedModelIsSupportsImage={selectedModelIsSupportsImage}
+          setSelectedModelProvider={setSelectedModelProvider}
+          setSelectedModelIsSupportsImage={setSelectedModelIsSupportsImage}
           onSubmit={onSubmit}
           onReset={clearCurrentUrlMessages}
           currentUrl={currentUrl}

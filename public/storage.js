@@ -121,3 +121,30 @@ export async function getDeepSeekBaseUrl() {
 export async function setDeepSeekBaseUrl(baseUrl) {
   return setItem("deepSeekBaseUrl", baseUrl);
 }
+
+export async function setWebPreview(webPreview) {
+  return setItem("webPreview", webPreview);
+}
+
+export async function getWebPreview() {
+  const webPreview = await getItem("webPreview");
+  return webPreview ?? true;
+}
+
+export async function setClaudeApiKey(apiKey) {
+  return setItem("claudeApiKey", apiKey);
+}
+
+export async function getClaudeApiKey() {
+  const apiKey = await getItem("claudeApiKey");
+  return apiKey || "";
+}
+
+export async function setOpenaiApiKey(apiKey) {
+  return setItem("openaiApiKey", apiKey);
+}
+
+export async function getOpenaiApiKey() {
+  const apiKey = await getItem("openaiApiKey");
+  return apiKey || "";
+}

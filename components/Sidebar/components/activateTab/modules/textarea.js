@@ -5,14 +5,21 @@ import { Tooltip } from "react-tooltip";
 import { createTags } from "../../../contants/activateBar";
 import { useScreenshotHandler } from "../../../hooks/useScreenshotHandler";
 import { ModelSelector } from "../../common/modelSelect";
+import { TagButton } from "./TagButton";
 
 export const TextareaRef = ({
+  useInput,
   onSubmit,
   onReset,
   currentUrl,
   selectedModel,
   setSelectedModel,
   isAiThinking,
+  isContentReady,
+  selectedModelProvider,
+  selectedModelIsSupportsImage,
+  setSelectedModelProvider,
+  setSelectedModelIsSupportsImage,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -62,6 +69,7 @@ export const TextareaRef = ({
 
   // 5. 优化提交处理
   const handleSubmit = useCallback(() => {
+    if (!isContentReady) return;
     const trimmedValue = inputValue.trim();
     if (!trimmedValue) return;
 
@@ -70,7 +78,6 @@ export const TextareaRef = ({
     setScreenshotData(null);
   }, [inputValue, screenshotData, onSubmit, createMessage]);
 
-  // 6. 优化标签点击处理
   const handleTagClick = useCallback(
     async (prompt, type) => {
       if (isAiThinking || (type === "screenshot" && !currentModelSupportsImage))
@@ -130,59 +137,19 @@ export const TextareaRef = ({
     }
   };
 
-  const getTagButtonClassName = useCallback(
-    (tag, isFirstTag = false) => {
-      const baseClass = `tags-button-${tag.type}`;
-      if (isFirstTag) {
-        return `${baseClass} p-2 rounded-xl
-          flex items-center justify-center
-          transition-all duration-200
-          ${
-            tag.disabled || isAiThinking
-              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white"
-          }
-          shadow-sm hover:shadow-md`;
-      }
-      return `${baseClass} p-2 rounded-xl
-        flex items-center justify-center
-        transition-all duration-200
-        ${
-          tag.disabled || isAiThinking
-            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-            : "bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 border border-gray-200"
-        }
-        shadow-sm hover:shadow-md`;
-    },
-    [isAiThinking]
-  );
-
   return (
     <>
       <div className="flex items-center gap-2 justify-between">
         <div className="flex items-center gap-2">
           {tags.map((tag, index) => (
-            <button
+            <TagButton
               key={tag.type}
-              onClick={() => handleTagClick(tag.prompt, tag.type)}
-              disabled={tag.disabled || isAiThinking}
-              className={getTagButtonClassName(tag, index === 0)}
-            >
-              <tag.icon
-                className={`w-4 h-4 ${
-                  tag.type === "screenshot" ? "-rotate-90" : ""
-                }`}
-              />
-              <Tooltip
-                style={{
-                  borderRadius: "8px",
-                }}
-                anchorSelect={`.tags-button-${tag.type}`}
-                place="top"
-              >
-                {tag.text}
-              </Tooltip>
-            </button>
+              tag={tag}
+              isFirstTag={index === 0}
+              isAiThinking={isAiThinking}
+              onTagClick={handleTagClick}
+              useInput={useInput}
+            />
           ))}
         </div>
         <div className="flex gap-2">
@@ -217,7 +184,7 @@ export const TextareaRef = ({
               flex items-center justify-center
               transition-all duration-200
               ${
-                !inputValue.trim() || isAiThinking
+                !inputValue.trim() || isAiThinking || !isContentReady
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                   : "bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200"
               }
@@ -232,7 +199,7 @@ export const TextareaRef = ({
             anchorSelect=".button-tag-submit"
             place="top"
           >
-            发送消息
+            {isContentReady ? "发送消息" : "页面加载中..."}
           </Tooltip>
         </div>
       </div>
@@ -252,15 +219,6 @@ export const TextareaRef = ({
           focus-within:border-indigo-500 hover:border-indigo-500 
           transition-colors duration-200"
         >
-          <div className="relative">
-            <ModelSelector
-              isOpen={isOpen}
-              setIsOpen={setIsOpen}
-              selectedModel={selectedModel}
-              setSelectedModel={setSelectedModel}
-              setScreenshotData={setScreenshotData}
-            />
-          </div>
           {screenshotData && (
             <>
               <div className="h-[80px] px-2 pt-2 pb-2">
@@ -294,6 +252,20 @@ export const TextareaRef = ({
               text-gray-900 outline-none resize-none min-h-[100px] max-h-[300px]
               placeholder:text-gray-400 sm:text-sm/6"
           />
+          <div className="relative mb-1">
+            <ModelSelector
+              useInput={useInput}
+              selectedModelProvider={selectedModelProvider}
+              selectedModelIsSupportsImage={selectedModelIsSupportsImage}
+              setSelectedModelProvider={setSelectedModelProvider}
+              setSelectedModelIsSupportsImage={setSelectedModelIsSupportsImage}
+              isOpen={isOpen}
+              setIsOpen={setIsOpen}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+              setScreenshotData={setScreenshotData}
+            />
+          </div>
         </div>
       </div>
     </>

@@ -1,8 +1,26 @@
-import { Globe, Check, Loader2 } from "lucide-react";
+import { LogIn, Check, Loader2, Globe } from "lucide-react";
 import { MarkdownRenderer } from "./modules/parseMrakdown";
-import { FooterCheck } from "./modules/check";
+import { CouldNotGetWebContent } from "./modules/couldNotGetWebContent";
+import { NoLogin } from "./modules/noLogin";
+const WelcomePage = ({
+  webPreview,
+  userInput,
+  currentUrl,
+  pageContent,
+  pageLoading,
+  pageSummary,
+  pageCriticalAnalysis,
+  setActivatePage,
+}) => {
+  console.log("userinput", !userInput);
+  if (!userInput) {
+    return <NoLogin setActivatePage={setActivatePage} />;
+  }
 
-const WelcomePage = ({ currentUrl, pageContent, pageLoading, pageSummary }) => {
+  if (!webPreview) {
+    return <CouldNotGetWebContent setActivatePage={setActivatePage} />;
+  }
+
   return (
     <>
       {pageLoading ? (
@@ -46,11 +64,15 @@ const WelcomePage = ({ currentUrl, pageContent, pageLoading, pageSummary }) => {
           </div>
         </div>
       ) : (
-        <div className="w-full h-full rounded-xl bg-white">
-          <MarkdownRenderer content={pageSummary} />
+        <div className="w-full h-[calc(100vh-8px)] rounded-xl flex flex-col bg-white">
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 p-2 space-y-4">
+            <MarkdownRenderer
+              content={pageSummary}
+              criticalAnalysis={pageCriticalAnalysis}
+            />
+          </div>
         </div>
       )}
-      <FooterCheck />
     </>
   );
 };

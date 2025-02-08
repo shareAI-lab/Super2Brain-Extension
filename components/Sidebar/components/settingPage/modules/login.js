@@ -188,15 +188,31 @@ const Login = () => {
           <p className="mt-6 text-center text-sm text-gray-600">
             登录即表示您同意{" "}
             <a
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(
+                  "https://limyand.github.io/super2brian-privacy/",
+                  "_blank",
+                  "noopener,noreferrer"
+                );
+              }}
               href="/privacy"
-              className="font-medium text-blue-600 hover:text-blue-700"
+              className="font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
             >
               隐私协议
             </a>{" "}
             和{" "}
             <a
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(
+                  "https://limyand.github.io/super2brian-privacy/",
+                  "_blank",
+                  "noopener,noreferrer"
+                );
+              }}
               href="/terms"
-              className="font-medium text-blue-600 hover:text-blue-700"
+              className="font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
             >
               服务条款
             </a>

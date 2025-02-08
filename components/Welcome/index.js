@@ -1,19 +1,16 @@
 import StepBar from "./modules/StepBar";
-import React from "react";
+import React, { useState } from "react";
 import First from "./step/First";
 import Second from "./step/Second";
-import SecondRight from "./step/SecondRight";
+
 import FirstRight from "./step/FirstRight";
-
-import PinExtension from "./step/PinExtension";
-import PinExtensionRight from "./step/PinExtensionRight";
-
+import SecondRight from "./step/SecondRight";
 export default function WelcomeCom() {
-  const [currentStep, setCurrentStep] = React.useState(1);
-  const [apiKey, setApiKey] = React.useState("");
-  
+  const [currentStep, setCurrentStep] = useState(1);
+  const [apiKey, setApiKey] = useState("");
+
   const handleStepChange = async (step) => {
-    if (step > 3) {
+    if (step > 2) {
       window.close();
       return;
     }
@@ -31,9 +28,7 @@ export default function WelcomeCom() {
           />
         );
       case 2:
-        return (
-          <PinExtension onNext={() => handleStepChange(currentStep + 1)} />
-        );
+        return <Second onNext={() => handleStepChange(currentStep + 1)} />;
       case 3:
         return <Second onNext={() => handleStepChange(currentStep + 1)} />;
       default:
@@ -49,7 +44,7 @@ export default function WelcomeCom() {
             <h1 className="text-2xl font-bold mb-12 text-left">👋 欢迎使用</h1>
             <StepBar
               currentStep={currentStep}
-              totalSteps={3}
+              totalSteps={2}
               onChange={handleStepChange}
             />
           </div>
@@ -60,7 +55,7 @@ export default function WelcomeCom() {
         {currentStep === 3 ? (
           <SecondRight />
         ) : currentStep === 2 ? (
-          <PinExtensionRight />
+          <FirstRight />
         ) : (
           <FirstRight />
         )}

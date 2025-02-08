@@ -179,7 +179,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         await keepAlive(true);
-        const endpoint = "https://s2bapi.zima.pet/common/tasks/content-note";
+        const endpoint =
+          "https://api.super2brain.com/common/tasks/content-note";
 
         const response = await fetch(endpoint, {
           method: "POST",
@@ -328,9 +329,9 @@ async function extractPageContent(url) {
     }
 
     console.log("正在创建新标签页:", url);
-    const tab = await chrome.tabs.create({ 
-      url, 
-      active: false 
+    const tab = await chrome.tabs.create({
+      url,
+      active: false,
     });
     console.log("标签页已创建:", tab.id);
 
@@ -353,9 +354,9 @@ async function extractPageContent(url) {
     try {
       // 使用 Promise.race 竞争加载和超时
       await Promise.race([pageLoad, timeout]);
-      
+
       // 确保页面完全加载后再执行脚本
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       console.log("开始执行内容提取:", tab.id);
       const content = await chrome.scripting.executeScript({

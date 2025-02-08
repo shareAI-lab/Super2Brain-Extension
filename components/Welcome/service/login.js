@@ -1,4 +1,4 @@
-import { config } from "../../config/index"
+import { config } from "../../config/index";
 
 export const getCode = async (email) => {
   try {
@@ -18,7 +18,7 @@ export const getCode = async (email) => {
 
     // 验证返回数据的格式
     if (data.code !== 200) {
-      throw new Error(data.msg || "获取验证码失败");
+      throw new Error("获取验证码失败,请检查网络链接");
     }
 
     return data.data;
@@ -39,13 +39,13 @@ export const login = async ({ email, code }) => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`验证码错误或者已过期`);
     }
 
     const data = await response.json();
 
     if (data.code !== 200) {
-      throw new Error(data.msg || "登录失败");
+      throw new Error("登录失败,请检查网络链接");
     }
 
     return data.data;

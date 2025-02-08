@@ -34,7 +34,6 @@ async function initializeContentScript() {
   let lastUrl = location.href;
   observer.observe(document, { subtree: true, childList: true });
 
-  // 保持原有的消息监听功能
   chrome.runtime.onMessage.addListener(
     async (message, sender, sendResponse) => {
       if (message.type === "CHECK_READY") {
@@ -42,9 +41,13 @@ async function initializeContentScript() {
         return false;
       }
 
+      if (message.type === "PING") {
+        sendResponse({ status: "ok" });
+        return false;
+      }
+
       if (message.type === "GET_MARKDOWN") {
         try {
-          // 确保依赖已加载
           await ensureDependencies();
 
           const markdown = await extractMarkdown(
@@ -178,7 +181,6 @@ async function injectDependencies() {
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
-// 创建选区截图的 UI
 function createScreenshotUI() {
   const overlay = document.createElement("div");
   overlay.style.cssText = `
@@ -192,9 +194,6 @@ function createScreenshotUI() {
     cursor: crosshair;
   `;
 
-  let startX,
-    startY,
-    isDrawing = false;
   const selection = document.createElement("div");
   selection.style.cssText = `
     position: fixed;
@@ -203,13 +202,53 @@ function createScreenshotUI() {
     display: none;
   `;
 
+  const buttonContainer = document.createElement("div");
+  buttonContainer.style.cssText = `
+    position: absolute;
+    bottom: -40px;
+    right: 0;
+    display: none;
+    gap: 8px;
+  `;
+
+  const cancelButton = document.createElement("button");
+  cancelButton.textContent = "取消";
+  cancelButton.style.cssText = `
+    padding: 4px 12px;
+    background: #ffffff;
+    color: #666;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 4px;
+  `;
+
+  const confirmButton = document.createElement("button");
+  confirmButton.textContent = "确定";
+  confirmButton.style.cssText = `
+    padding: 4px 12px;
+    background: #1890ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  `;
+
+  buttonContainer.appendChild(cancelButton);
+  buttonContainer.appendChild(confirmButton);
+  selection.appendChild(buttonContainer);
   overlay.appendChild(selection);
+
+  let startX,
+    startY,
+    isDrawing = false;
 
   overlay.addEventListener("mousedown", (e) => {
     isDrawing = true;
     startX = e.clientX;
     startY = e.clientY;
     selection.style.display = "block";
+    buttonContainer.style.display = "none";
     selection.style.left = `${startX}px`;
     selection.style.top = `${startY}px`;
   });
@@ -229,11 +268,14 @@ function createScreenshotUI() {
     selection.style.top = `${height > 0 ? startY : currentY}px`;
   });
 
-  overlay.addEventListener("mouseup", async () => {
+  overlay.addEventListener("mouseup", () => {
     isDrawing = false;
-    const rect = selection.getBoundingClientRect();
+    buttonContainer.style.display = "flex";
+  });
 
-    // 直接发送消息给 background 进行截图
+  // 确认按钮点击事件
+  confirmButton.addEventListener("click", async () => {
+    const rect = selection.getBoundingClientRect();
     chrome.runtime.sendMessage({
       type: "CAPTURE_SELECTED_AREA",
       payload: {
@@ -244,8 +286,17 @@ function createScreenshotUI() {
         devicePixelRatio: window.devicePixelRatio,
       },
     });
-
     document.body.removeChild(overlay);
+  });
+
+  // 取消按钮点击事件
+  cancelButton.addEventListener("click", () => {
+    document.body.removeChild(overlay);
+  });
+
+  // 防止按钮点击事件冒泡到 overlay
+  buttonContainer.addEventListener("mousedown", (e) => {
+    e.stopPropagation();
   });
 
   document.body.appendChild(overlay);

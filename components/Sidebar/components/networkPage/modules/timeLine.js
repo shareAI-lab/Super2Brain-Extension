@@ -54,8 +54,14 @@ const TimeLine = ({ contentUrlList }) => {
     </div>
   );
 
+  const isAllStatusZero = contentUrlList.every(event => event.status === 0);
+  
+  if (isAllStatusZero) {
+    return null;
+  }
+
   return (
-    <div className="w-[80%]">
+    <div className="w-full">
       {contentUrlList.length === 0 ? (
         renderLoadingState()
       ) : (

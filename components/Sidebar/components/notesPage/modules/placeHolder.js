@@ -13,7 +13,7 @@ const PlaceHolder = ({ setActivatePage }) => {
               没有登录，无法进行知识库搜索
             </div>
             <button
-              onClick={() => setActivatePage(4)}
+              onClick={() => setActivatePage(5)}
               className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium 
                 hover:bg-blue-600 active:bg-blue-700 transform hover:-translate-y-0.5 
                 transition-all duration-150 shadow-md hover:shadow-lg"

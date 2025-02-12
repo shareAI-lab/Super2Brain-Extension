@@ -1,4 +1,3 @@
-// 定义统一的消息格式
 const MessageRole = {
   SYSTEM: "system",
   USER: "user",
@@ -6,7 +5,18 @@ const MessageRole = {
 };
 
 const createUnifiedRequest = (messages, options = {}) => ({
-  messages,
+  messages: messages.map((msg) => ({
+    role: msg.role,
+    content: msg.imageData
+      ? [
+          { type: "text", text: msg.content },
+          {
+            type: "image_url",
+            image_url: { url: msg.imageData },
+          },
+        ]
+      : msg.content,
+  })),
   model: options.model,
   ...options,
 });
@@ -25,17 +35,11 @@ const modelAdapters = {
       usage: response.usage,
     }),
   },
-
   openai: {
     baseUrl: "/v1/chat/completions",
     transformRequest: (unifiedRequest) => ({
       model: unifiedRequest.model,
-      messages: unifiedRequest.messages.map((msg) => ({
-        role: msg.role,
-        content: Array.isArray(msg.content)
-          ? msg.content
-          : [{ type: "text", text: msg.content }],
-      })),
+      messages: unifiedRequest.messages,
       temperature: unifiedRequest.temperature ?? 0.7,
       max_tokens: unifiedRequest.maxTokens,
     }),
@@ -44,7 +48,6 @@ const modelAdapters = {
       usage: response.usage,
     }),
   },
-
   claude: {
     baseUrl: "/v1/messages",
     transformRequest: (unifiedRequest) => ({
@@ -70,6 +73,62 @@ const modelAdapters = {
     baseUrl: "/v1/chat/completions",
     transformRequest: (unifiedRequest) => ({
       model: unifiedRequest.model,
+      messages: unifiedRequest.messages,
+      temperature: unifiedRequest.temperature ?? 0.7,
+      max_tokens: unifiedRequest.maxTokens,
+    }),
+    transformResponse: (response) => ({
+      content: response.choices[0].message.content,
+      usage: response.usage,
+    }),
+  },
+  ollama: {
+    baseUrl: "/api/chat",
+    transformRequest: (unifiedRequest) => ({
+      model: unifiedRequest.model,
+      messages: unifiedRequest.messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      options: {
+        temperature: unifiedRequest.temperature ?? 0.7,
+      },
+    }),
+    transformResponse: (response) => ({
+      content: response.message.content,
+      usage: {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
+    }),
+  },
+  custom: {
+    baseUrl: "/v1/chat/completions",
+    transformRequest: (unifiedRequest) => ({
+      model: unifiedRequest.model,
+      messages: unifiedRequest.messages.map((msg) => ({
+        role: msg.role,
+        content: Array.isArray(msg.content)
+          ? msg.content
+          : [{ type: "text", text: msg.content }],
+      })),
+      temperature: unifiedRequest.temperature ?? 0.7,
+      max_tokens: unifiedRequest.maxTokens,
+    }),
+    transformResponse: (response) => ({
+      content: response.choices[0].message.content,
+      usage: response.usage || {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
+    }),
+  },
+  lmstudio: {
+    baseUrl: "/v1/chat/completions",
+    transformRequest: (unifiedRequest) => ({
+      model: unifiedRequest.model,
       messages: unifiedRequest.messages.map((msg) => ({
         role: msg.role,
         content:
@@ -84,12 +143,25 @@ const modelAdapters = {
     }),
     transformResponse: (response) => ({
       content: response.choices[0].message.content,
-      usage: response.usage,
+      usage: response.usage || {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
     }),
   },
 };
 
-// 统一的 api调用格式
+const MODEL_MAPPING = {
+  "deepseek-v3": "deepseek-chat",
+  "deepseek-r1": "deepseek-reasoner",
+  "Deepseek-V3": "deepseek-chat",
+  "Deepseek-R1": "deepseek-reasoner",
+};
+
+const removeTrailingV1 = (url) =>
+  url.endsWith("/v1") ? url.slice(0, -3) : url;
+
 const callAI = async ({
   provider,
   baseUrl,
@@ -98,14 +170,20 @@ const callAI = async ({
   messages,
   options = {},
 }) => {
+  console.log(messages);
+
+  const cleanBaseUrl = removeTrailingV1(baseUrl);
+
   const adapter = modelAdapters[provider];
+
+  const mappedModel = MODEL_MAPPING[model.toLowerCase()] || model;
 
   if (!adapter) {
     throw new Error(`不支持的 AI 提供商: ${provider}`);
   }
 
   try {
-    const response = await fetch(`${baseUrl}${adapter.baseUrl}`, {
+    const response = await fetch(`${cleanBaseUrl}${adapter.baseUrl}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -113,7 +191,7 @@ const callAI = async ({
       },
       body: JSON.stringify(
         adapter.transformRequest(
-          createUnifiedRequest(messages, { ...options, model })
+          createUnifiedRequest(messages, { ...options, model: mappedModel })
         )
       ),
     });

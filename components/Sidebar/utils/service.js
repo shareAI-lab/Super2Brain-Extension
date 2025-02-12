@@ -1,8 +1,7 @@
 import { config } from "../../config/index"
 
-export const token = config.token;
 export const baseUrl = config.baseUrl;
-export const search = async (query) => {
+export const search = async (userInput, query) => {
   try {
     const response = await fetch(
       `${baseUrl}/common/notes/search/similar?limit=10`,
@@ -10,7 +9,7 @@ export const search = async (query) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${userInput}`,
         },
         body: JSON.stringify({
           query_text: query,

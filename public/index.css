@@ -9,11 +9,11 @@
   border-bottom-left-radius: 30px;
   color: #fff;
   font-size: 14px;
-  opacity: 0.5;
+  opacity: 1;
   cursor: pointer;
-  transition: transform 250ms ease-in-out;
+  transition: opacity 250ms ease-in-out, transform 250ms ease-in-out;
   transform: translateX(35px);
-  background: linear-gradient(90deg, #dbeafe 85%, #bfdbfe);
+  background: white !important;
   margin: 1px;
   display: flex;
   align-items: center;
@@ -24,9 +24,15 @@
   box-shadow: none;
 }
 
+.flot-btn:hover {
+  opacity: 1;
+  transform: translateX(20px);
+  background: white !important;
+}
+
 .flot-btn svg {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
 }
 
 .memfree-loader {

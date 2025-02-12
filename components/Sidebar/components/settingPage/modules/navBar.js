@@ -1,8 +1,9 @@
-import { Settings, Cpu } from "lucide-react";
+import { Settings, Cpu, Info } from "lucide-react";
 
 const tabs = [
   { name: "基础设置", icon: Settings },
   { name: "模型设置", icon: Cpu },
+  { name: "关于", icon: Info },
 ];
 
 const NavBar = ({ activeTab, onTabChange }) => {

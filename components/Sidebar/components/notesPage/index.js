@@ -1,20 +1,11 @@
-import {
-  Bot,
-  ChevronDown,
-  Copy,
-  RotateCw,
-  Check,
-  Plus,
-  Send,
-} from "lucide-react";
+import { Bot, ChevronDown, Plus, Send } from "lucide-react";
 import { useState, useCallback } from "react";
 import { getResponse } from "../../utils/index.js";
 import { marked } from "marked";
-import { RelatedDocs } from "./modules/RelatedDocs.js";
-import { RelatedQuestions } from "./modules/RelatedQuestions.js";
 import { Tooltip } from "react-tooltip";
 import { super2brainModel } from "../../config/models.js";
 import { PlaceHolder } from "./modules/placeHolder.js";
+import { MessageList } from "./modules/MessageList.js";
 
 const NotesSearch = ({ useInput, setActivatePage }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -100,7 +91,6 @@ const NotesSearch = ({ useInput, setActivatePage }) => {
         }
       );
 
-      // 完成后设置消息状态为完成
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === aiMessage.id
@@ -118,7 +108,6 @@ const NotesSearch = ({ useInput, setActivatePage }) => {
     }
   };
 
-  // 添加复制功能
   const handleCopy = async (content, messageId) => {
     try {
       await navigator.clipboard.writeText(content);
@@ -200,28 +189,6 @@ const NotesSearch = ({ useInput, setActivatePage }) => {
     }
   };
 
-  // 使用 marked 来渲染 Markdown
-  const renderMarkdown = (content) => {
-    return (
-      <>
-        <div
-          className="text-sm break-words leading-relaxed prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{
-            __html: marked.parse(content, {
-              breaks: true,
-              gfm: true,
-              pedantic: true,
-              smartLists: false,
-              mangle: false,
-              headerIds: false,
-            }),
-          }}
-        />
-      </>
-    );
-  };
-
-  // 添加重置对话功能
   const handleReset = useCallback(() => {
     setMessages([]);
     setQuery("");
@@ -235,95 +202,16 @@ const NotesSearch = ({ useInput, setActivatePage }) => {
       {!useInput ? (
         <PlaceHolder setActivatePage={setActivatePage} />
       ) : (
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 p-2 space-y-4">
-          {messages.map((message) => (
-            <div key={message.id} className="space-y-2">
-              <div
-                className={`${
-                  message.isUser
-                    ? "text-blue-600 flex justify-end"
-                    : "text-gray-800"
-                }`}
-              >
-                {message.isUser ? (
-                  <div className="text-sm whitespace-pre-wrap bg-blue-100 rounded-lg p-2 max-w-[80%]">
-                    {message.content}
-                  </div>
-                ) : (
-                  <div className="max-w-[80%] bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white p-3">
-                      <div className="flex items-center gap-2">
-                        <Bot className="w-5 h-5 text-indigo-600" />
-                        <span className="font-medium text-indigo-600">
-                          {model}:
-                        </span>
-                      </div>
-                    </div>
-
-                    {message.isComplete && (
-                      <div className="p-4">
-                        {renderMarkdown(message.content)}
-                        <div className="flex justify-between items-start mt-2">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleCopy(message.content, message.id)
-                              }
-                              className="p-1 hover:bg-gray-100 rounded-md"
-                              title="复制内容"
-                            >
-                              {copiedMessageId === message.id ? (
-                                <Check className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <Copy className="w-4 h-4 text-gray-500" />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => handleRegenerate(message.id)}
-                              className="p-1 hover:bg-gray-100 rounded-md"
-                              title="重新生成"
-                            >
-                              <RotateCw className="w-4 h-4 text-gray-500" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {!message.isComplete && (
-                      <div className="flex items-center space-x-2 p-3 bg-gray-50">
-                        <div className="animate-pulse flex space-x-1">
-                          <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
-                          <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
-                          <div className="h-2 w-2 bg-indigo-400 rounded-full"></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {!message.isUser && message.related?.length > 0 && (
-                <RelatedDocs
-                  message={message}
-                  expandedDocs={expandedDocs}
-                  onToggleExpand={() => {
-                    setExpandedDocs((prev) => ({
-                      ...prev,
-                      [`${message.id}-docs`]: !prev[`${message.id}-docs`],
-                    }));
-                  }}
-                />
-              )}
-
-              {!message.isUser && message.isComplete && (
-                <div className="flex items-center gap-2">
-                  <RelatedQuestions message={message} setQuery={setQuery} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        <MessageList
+          messages={messages}
+          model={model}
+          copiedMessageId={copiedMessageId}
+          expandedDocs={expandedDocs}
+          handleCopy={handleCopy}
+          handleRegenerate={handleRegenerate}
+          setExpandedDocs={setExpandedDocs}
+          setQuery={setQuery}
+        />
       )}
 
       <div className="flex-shrink-0 bg-white p-2">

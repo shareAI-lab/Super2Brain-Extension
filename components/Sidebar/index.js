@@ -1,10 +1,21 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { SettingPage } from "./components/settingPage";
 import { ActivateBar } from "./components/common/activateBar";
-import { NotesSearch } from "./components/notesPage";
-import { getItem, getUserInput } from "../../public/storage";
+import {
+  getUserInput,
+  getDeepSeekApiKey,
+  getOpenaiApiKey,
+  getClaudeApiKey,
+  getOllamaConfig,
+  getCustomConfig,
+  getLmstudioConfig,
+  getWebSummary,
+  getWebAnalysis,
+  setWebSummary,
+  setWebAnalysis,
+} from "../../public/storage";
+import { TaskList } from "./components/taskList";
 import { callAI, MessageRole } from "./services/ai";
-import { AI_MODELS } from "./config/models";
 import { WelcomePage } from "./components/welcomePage";
 import { fetchUrlContent, fetchCriticalAnalysis } from "./utils/chat";
 import { ActivateTabChatPanel } from "./components/activateTab";
@@ -12,6 +23,12 @@ import { NetworkSearch } from "./components/networkPage";
 import { processContent } from "./utils/contentProcessor";
 import { config } from "../config/index.js";
 import { getWebPreview } from "../../public/storage";
+import { DeepSearch } from "./components/deepSearch";
+import { useDeepSearch } from "./hooks/useDeepSearch";
+import { AnimatePresence, motion } from "framer-motion";
+import { pipe } from "lodash/fp";
+import { useRelatedQuestions } from "./hooks/useRelatedQuestions";
+import { pageVariants, pageTransition } from "./contants/pageTransltions";
 
 export default function Sidebar() {
   const [activatePage, setActivatePage] = useState(0);
@@ -20,7 +37,7 @@ export default function Sidebar() {
   const [userInput, setUserInput] = useState("");
   const [pageContent, setPageContent] = useState("");
   const [pageSummary, setPageSummary] = useState("");
-  const [pageLoading, setPageLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [messages, setMessages] = useState(new Map());
   const contentCacheRef = useRef(new Map());
@@ -31,13 +48,66 @@ export default function Sidebar() {
   const [loadingUrls, setLoadingUrls] = useState(new Map());
   const [isContentReady, setIsContentReady] = useState(true);
   const [webPreview, setWebPreview] = useState(false);
+  const [currentUrlTab, setCurrentUrlTab] = useState("welcome");
+  const [urlTabCache, setUrlTabCache] = useState(new Map());
+
+  const deepSearchState = useDeepSearch(userInput);
+  const [isDeepThingActive, setIsDeepThingActive] = useState(false);
+
+  const {
+    fetchRelatedQuestions,
+    currentUrlRelatedQuestions,
+    currentUrlLoading,
+  } = useRelatedQuestions({
+    content: pageContent,
+    currentUrl,
+  });
+
+  useEffect(() => {
+    fetchRelatedQuestions();
+  }, [pageContent, currentUrl]);
+
+  useEffect(() => {
+    const fetchUserInput = async () => {
+      const input = await getUserInput();
+      setUserInput(input);
+    };
+
+    fetchUserInput();
+  }, []);
+
+  useEffect(() => {
+    const updateUrlTab = () => {
+      if (currentUrl) {
+        const cachedTab = urlTabCache.get(currentUrl);
+        if (cachedTab) {
+          setCurrentUrlTab(cachedTab);
+        } else {
+          setCurrentUrlTab("welcome");
+          setUrlTabCache((prevCache) =>
+            new Map(prevCache).set(currentUrl, "welcome")
+          );
+        }
+      }
+    };
+
+    updateUrlTab();
+  }, [currentUrl]);
+
+  useEffect(() => {
+    if (currentUrl && currentUrlTab) {
+      setUrlTabCache((prevCache) =>
+        new Map(prevCache).set(currentUrl, currentUrlTab)
+      );
+    }
+  }, [currentUrl, currentUrlTab]);
 
   useEffect(() => {
     const fetchWebPreview = async () => {
       const webPreview = await getWebPreview();
-      console.log("🔄 网页速览:", webPreview);
       setWebPreview(webPreview);
     };
+
     fetchWebPreview();
   }, []);
 
@@ -69,64 +139,160 @@ export default function Sidebar() {
 
     const handleExistingSummary = (url) => {
       const summary = summaryCache.get(url);
-      const criticalAnalysis = criticalAnalysisCache.get(url);
-      if (summary && criticalAnalysis) {
+      if (summary) {
         setPageLoading(false);
         setPageSummary(summary);
-        setPageCriticalAnalysis(criticalAnalysis);
         return true;
       }
       return false;
     };
 
+    const shouldFetchSummary = pipe(
+      (url, content) => ({
+        shouldSkip: shouldSkipFetch(url, content),
+        hasExisting: handleExistingSummary(url),
+      }),
+      ({ shouldSkip, hasExisting }) => !shouldSkip && !hasExisting
+    );
+
     const fetchSummary = async (url, content) => {
       try {
         setPageLoading(true);
         setLoadingUrls((prev) => new Map(prev).set(url, true));
-        const summary = await fetchUrlContent(content);
-        const criticalAnalysis = await fetchCriticalAnalysis(content);
+        const cachedSummary = await getWebSummary(url);
+        console.log("cachedSummary", cachedSummary);
+        if (cachedSummary) {
+          setPageLoading(false);
+          setLoadingUrls((prev) => new Map(prev).set(url, false));
+          setSummaryCache((prev) => new Map(prev).set(url, cachedSummary));
+          setPageSummary(cachedSummary);
+          return;
+        }
+        setLoadingUrls((prev) => new Map(prev).set(url, true));
+        const summary = await fetchUrlContent(content, userInput);
+        setWebSummary(url, summary);
+        setLoadingUrls((prev) => new Map(prev).set(url, true));
         setSummaryCache((prev) => new Map(prev).set(url, summary));
-        setCriticalAnalysisCache((prev) =>
-          new Map(prev).set(url, criticalAnalysis)
-        );
         setPageSummary(summary);
-        setPageCriticalAnalysis(criticalAnalysis);
       } catch (error) {
         console.error("获取摘要失败:", error);
       } finally {
-        setPageLoading(false);
+        if (url === currentUrl) {
+          setPageLoading(false);
+        }
         setLoadingUrls((prev) => new Map(prev).set(url, false));
       }
     };
 
-    if (
-      !shouldSkipFetch(currentUrl, pageContent) &&
-      !handleExistingSummary(currentUrl)
-    ) {
+    if (shouldFetchSummary(currentUrl, pageContent)) {
       fetchSummary(currentUrl, pageContent);
+    } else {
+      setPageLoading(loadingUrls.get(currentUrl) ?? false);
+      setPageSummary(summaryCache.get(currentUrl) ?? "");
     }
-  }, [currentUrl, pageContent, userInput, webPreview, setWebPreview]);
+  }, [
+    currentUrl,
+    pageContent,
+    userInput,
+    webPreview,
+    setWebPreview,
+    pageLoading,
+    summaryCache,
+    loadingUrls,
+  ]);
+
+  useEffect(() => {
+    if (
+      !webPreview ||
+      !userInput?.trim() ||
+      !currentUrl ||
+      currentUrlTab !== "analysis"
+    ) {
+      return;
+    }
+
+    const shouldFetchAnalysis = (url) => {
+      const isLoading = loadingUrls.get(url);
+      const hasAnalysis = criticalAnalysisCache.get(url);
+      return !isLoading && !hasAnalysis;
+    };
+
+    const handleExistingAnalysis = (url) => {
+      const analysis = criticalAnalysisCache.get(url);
+      if (analysis) {
+        setPageCriticalAnalysis(analysis);
+        return true;
+      }
+      return false;
+    };
+
+    const fetchAnalysis = async (url, content) => {
+      try {
+        setPageLoading(true);
+        setLoadingUrls((prev) => new Map(prev).set(url, true));
+        const cachedAnalysis = await getWebAnalysis(url);
+        if (cachedAnalysis) {
+          setPageCriticalAnalysis(cachedAnalysis);
+          setLoadingUrls((prev) => new Map(prev).set(url, false));
+          setPageLoading(false);
+          setCriticalAnalysisCache((prev) =>
+            new Map(prev).set(url, cachedAnalysis)
+          );
+          return;
+        }
+        const analysis = await fetchCriticalAnalysis(content, userInput);
+        setWebAnalysis(url, analysis);
+        setCriticalAnalysisCache((prev) => new Map(prev).set(url, analysis));
+        setPageCriticalAnalysis(analysis);
+      } catch (error) {
+        console.error("获取批判分析失败:", error);
+      } finally {
+        if (url === currentUrl) {
+          setPageLoading(false);
+        }
+        setLoadingUrls((prev) => new Map(prev).set(url, false));
+      }
+    };
+
+    if (shouldFetchAnalysis(currentUrl)) {
+      if (!handleExistingAnalysis(currentUrl)) {
+        fetchAnalysis(currentUrl, pageContent);
+      }
+    }
+  }, [currentUrl, currentUrlTab, webPreview, userInput, pageContent]);
 
   const [settings, setSettings] = useState({
     super2brain: {
-      baseUrl: config.modelUrl || "",
-      apiKey: config.apiKey || "",
+      baseUrl: config.baseUrl || "",
+      apiKey: userInput || "",
     },
     deepseek: {
-      baseUrl: "",
+      baseUrl: "https://api.deepseek.com",
       apiKey: "",
     },
     openai: {
-      baseUrl: "",
+      baseUrl: "https://api.openai.com",
       apiKey: "",
     },
     claude: {
+      baseUrl: "https://api.anthropic.com",
+      apiKey: "",
+    },
+    ollama: {
+      baseUrl: "http://localhost:11434",
+      apiKey: "",
+    },
+    lmstudio: {
+      baseUrl: "http://localhost:1234",
+      apiKey: "",
+    },
+    custom: {
       baseUrl: "",
       apiKey: "",
     },
   });
 
-  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+  const [selectedModel, setSelectedModel] = useState("Deepseek-R1");
   const [selectedModelProvider, setSelectedModelProvider] =
     useState("super2brain");
   const [selectedModelIsSupportsImage, setSelectedModelIsSupportsImage] =
@@ -136,30 +302,43 @@ export default function Sidebar() {
   const fetchDeepSeekConfig = async () => {
     try {
       const configs = await Promise.all([
-        getItem("deepseekBaseUrl"),
-        getItem("deepseekApiKey"),
-        getItem("openaiBaseUrl"),
-        getItem("openaiApiKey"),
-        getItem("claudeBaseUrl"),
-        getItem("claudeApiKey"),
+        getDeepSeekApiKey(),
+        getOpenaiApiKey(),
+        getClaudeApiKey(),
       ]);
+      const currentUserInput = await getUserInput();
+      const lmstudioConfig = await getLmstudioConfig();
+      const ollamaConfig = await getOllamaConfig();
+      const customConfig = await getCustomConfig();
 
       setSettings((prev) => ({
         super2brain: {
-          baseUrl: config.modelUrl || "",
-          apiKey: config.apiKey || "",
+          baseUrl: `${config.baseUrl}/v1` || "",
+          apiKey: currentUserInput || "",
         },
         deepseek: {
-          baseUrl: configs[0] || "",
-          apiKey: configs[1] || "",
+          baseUrl: "https://api.deepseek.com" || "",
+          apiKey: configs[0] || "",
         },
         openai: {
-          baseUrl: configs[2] || "",
-          apiKey: configs[3] || "",
+          baseUrl: "https://api.openai.com" || "",
+          apiKey: configs[1] || "",
         },
         claude: {
-          baseUrl: configs[4] || "",
-          apiKey: configs[5] || "",
+          baseUrl: "https://api.anthropic.com" || "",
+          apiKey: configs[2] || "",
+        },
+        ollama: {
+          baseUrl: ollamaConfig.url || "",
+          apiKey: ollamaConfig.apiKey || "",
+        },
+        lmstudio: {
+          baseUrl: lmstudioConfig.url || "",
+          apiKey: lmstudioConfig.apiKey || "",
+        },
+        custom: {
+          baseUrl: customConfig.url || "",
+          apiKey: customConfig.apiKey || "",
         },
       }));
     } catch (error) {
@@ -199,16 +378,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     const handleMessage = (message) => {
-      console.log("📨 收到消息:", {
-        type: message.type,
-        payloadLength: message.payload?.length,
-      });
-
       if (message.type === "MARKDOWN_CONTENT") {
-        console.log("📥 接收到页面内容", {
-          url: currentUrl,
-          contentLength: message.payload.length,
-        });
         contentCacheRef.current.set(currentUrl, message.payload);
         setPageContent(message.payload);
       }
@@ -383,12 +553,7 @@ export default function Sidebar() {
 
         setIsAiThinking(true);
         thinkingStateRef.current.set(currentUrl, true);
-
-        const selectedModelConfig = AI_MODELS[selectedModel];
-
-        if (!selectedModelConfig) {
-          throw new Error(`未找到模型配置: ${selectedModel}`);
-        }
+        console.log("selectedModel", selectedModelProvider);
 
         const currentMessages = [
           {
@@ -398,18 +563,31 @@ export default function Sidebar() {
           ...getCurrentUrlMessages(),
           ...processedMessages,
         ];
-        console.log("🔄 当前消息:", selectedModelProvider);
-        console.log("🔄 当前消息:", settings[selectedModelProvider].baseUrl);
+        console.log("currentMessages", settings[selectedModelProvider].apiKey);
         const response = await callAI({
-          provider: selectedModelConfig.provider,
+          provider: selectedModelProvider,
           baseUrl: settings[selectedModelProvider].baseUrl,
           apiKey: settings[selectedModelProvider].apiKey,
-          model: selectedModel,
+          model: selectedModel.toLowerCase(),
           messages: currentMessages,
-
           options: {
             temperature: 0.7,
             maxTokens: 2000,
+          },
+          onProgress: (progress) => {
+            if (progress.state === 1) {
+              const response = progress.response;
+              addMessage(
+                currentUrl,
+                MessageRole.ASSISTANT,
+                response.content,
+                selectedModel
+              );
+            }
+            if (progress.state === 2) {
+              const relatedQuestions = progress.relatedQuestions;
+              console.log("relatedQuestions", relatedQuestions);
+            }
           },
         });
 
@@ -493,63 +671,146 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100 min-w-[500px]">
-      <div className="flex-1 flex flex-col min-w-0 py-1 pl-1">
-        {activatePage === 0 ? (
-          <div className="flex-1">
-            <WelcomePage
-              webPreview={webPreview}
-              userInput={userInput}
-              key={currentUrl}
-              currentUrl={currentUrl}
-              pageContent={pageContent}
-              pageLoading={pageLoading}
-              pageSummary={pageSummary}
-              pageCriticalAnalysis={pageCriticalAnalysis}
-              setActivatePage={setActivatePage}
-            />
-          </div>
-        ) : activatePage === 1 ? (
-          <ActivateTabChatPanel
-            useInput={userInput}
-            isContentReady={isContentReady}
-            selectedModelProvider={selectedModelProvider}
-            selectedModelIsSupportsImage={selectedModelIsSupportsImage}
-            setSelectedModelProvider={setSelectedModelProvider}
-            setSelectedModelIsSupportsImage={setSelectedModelIsSupportsImage}
-            getCurrentUrlMessages={getCurrentUrlMessages}
-            isAiThinking={isAiThinking}
-            copiedMessageId={copiedMessageId}
-            onCopy={handleCopy}
-            onRetry={handleRetry}
-            onSubmit={handleSubmit}
-            clearCurrentUrlMessages={clearCurrentUrlMessages}
-            currentUrl={currentUrl}
-            selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
-          />
-        ) : activatePage === 2 ? (
-          <div>
-            <NetworkSearch />
-          </div>
-        ) : activatePage === 3 ? (
-          <div>
-            <NotesSearch
-              useInput={userInput}
-              setActivatePage={setActivatePage}
-            />
-          </div>
-        ) : activatePage === 4 ? (
-          <div>
-            <SettingPage
-              webPreview={webPreview}
-              setWebPreview={setWebPreview}
-            />
-          </div>
-        ) : null}
+    <div className="flex h-screen overflow-hidden bg-gray-100">
+      <div className="flex-1 flex flex-col min-w-0 m-1 rounded-xl bg-white">
+        <AnimatePresence mode="wait">
+          {activatePage === 0 ? (
+            <motion.div
+              key="welcome"
+              className="flex-1 w-full"
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={pageVariants}
+              transition={pageTransition}
+            >
+              <WelcomePage
+                currentUrlTab={currentUrlTab}
+                setCurrentUrlTab={setCurrentUrlTab}
+                webPreview={webPreview}
+                userInput={userInput}
+                key={currentUrl}
+                currentUrl={currentUrl}
+                pageContent={pageContent}
+                pageLoading={pageLoading}
+                pageSummary={pageSummary}
+                pageCriticalAnalysis={pageCriticalAnalysis}
+                setActivatePage={setActivatePage}
+              />
+            </motion.div>
+          ) : activatePage === 1 ? (
+            <motion.div
+              key="chat"
+              initial="initial"
+              className="flex-1"
+              animate="animate"
+              exit="exit"
+              variants={pageVariants}
+              transition={pageTransition}
+            >
+              <ActivateTabChatPanel
+                currentUrlRelatedQuestions={currentUrlRelatedQuestions}
+                currentUrlLoading={currentUrlLoading}
+                pageContent={pageContent}
+                useInput={userInput}
+                isContentReady={isContentReady}
+                selectedModelProvider={selectedModelProvider}
+                selectedModelIsSupportsImage={selectedModelIsSupportsImage}
+                setSelectedModelProvider={setSelectedModelProvider}
+                setSelectedModelIsSupportsImage={
+                  setSelectedModelIsSupportsImage
+                }
+                setActivatePage={setActivatePage}
+                getCurrentUrlMessages={getCurrentUrlMessages}
+                isAiThinking={isAiThinking}
+                copiedMessageId={copiedMessageId}
+                onCopy={handleCopy}
+                onRetry={handleRetry}
+                onSubmit={handleSubmit}
+                clearCurrentUrlMessages={clearCurrentUrlMessages}
+                currentUrl={currentUrl}
+                selectedModel={selectedModel}
+                setSelectedModel={setSelectedModel}
+              />
+            </motion.div>
+          ) : activatePage === 2 ? (
+            <motion.div
+              key="network"
+              className="flex-1"
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={pageVariants}
+              transition={pageTransition}
+            >
+              <NetworkSearch
+                userInput={userInput}
+                setActivatePage={setActivatePage}
+                selectedModelProvider={selectedModelProvider}
+                selectedModelIsSupportsImage={selectedModelIsSupportsImage}
+                setSelectedModelProvider={setSelectedModelProvider}
+                setSelectedModelIsSupportsImage={
+                  setSelectedModelIsSupportsImage
+                }
+              />
+            </motion.div>
+          ) : activatePage === 3 ? (
+            <motion.div
+              key="deepSearch"
+              className="flex-1"
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={pageVariants}
+              transition={pageTransition}
+            >
+              <DeepSearch
+                query={deepSearchState.query}
+                setQuery={deepSearchState.setQuery}
+                messages={deepSearchState.messages}
+                isLoading={deepSearchState.isLoading}
+                currentStatus={deepSearchState.currentStatus}
+                onSendMessage={deepSearchState.handleSendMessage}
+                isDeepThingActive={isDeepThingActive}
+                setIsDeepThingActive={setIsDeepThingActive}
+              />
+            </motion.div>
+          ) : activatePage === 5 ? (
+            <motion.div
+              key="settings"
+              className="flex-1"
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={pageVariants}
+              transition={pageTransition}
+            >
+              <SettingPage
+                settings={settings}
+                setSettings={setSettings}
+                webPreview={webPreview}
+                setWebPreview={setWebPreview}
+                setUserInput={setUserInput}
+                userInput={userInput}
+              />
+            </motion.div>
+          ) : activatePage === 4 ? (
+            <motion.div
+              key="taskList"
+              className="flex-1 h-full overflow-hidden"
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={pageVariants}
+              transition={pageTransition}
+            >
+              <TaskList />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
 
-      <div className="w-10 flex-shrink-0 bg-gray-100">
+      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-50">
         <ActivateBar
           activatePage={activatePage}
           setActivatePage={setActivatePage}

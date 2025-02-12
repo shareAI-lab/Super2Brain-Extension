@@ -1,8 +1,10 @@
-import { LogIn, Check, Loader2, Globe } from "lucide-react";
+import { Check, Loader2, Globe } from "lucide-react";
 import { MarkdownRenderer } from "./modules/parseMrakdown";
 import { CouldNotGetWebContent } from "./modules/couldNotGetWebContent";
 import { NoLogin } from "./modules/noLogin";
 const WelcomePage = ({
+  currentUrlTab,
+  setCurrentUrlTab,
   webPreview,
   userInput,
   currentUrl,
@@ -12,7 +14,6 @@ const WelcomePage = ({
   pageCriticalAnalysis,
   setActivatePage,
 }) => {
-  console.log("userinput", !userInput);
   if (!userInput) {
     return <NoLogin setActivatePage={setActivatePage} />;
   }
@@ -23,7 +24,7 @@ const WelcomePage = ({
 
   return (
     <>
-      {pageLoading ? (
+      {pageLoading || !pageContent ? (
         <div className="w-full h-full rounded-xl flex items-center justify-center bg-white">
           <div className="p-8">
             <div className="flex flex-col items-center justify-center gap-6">
@@ -67,6 +68,8 @@ const WelcomePage = ({
         <div className="w-full h-[calc(100vh-8px)] rounded-xl flex flex-col bg-white">
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 p-2 space-y-4">
             <MarkdownRenderer
+              currentUrlTab={currentUrlTab}
+              setCurrentUrlTab={setCurrentUrlTab}
               content={pageSummary}
               criticalAnalysis={pageCriticalAnalysis}
             />

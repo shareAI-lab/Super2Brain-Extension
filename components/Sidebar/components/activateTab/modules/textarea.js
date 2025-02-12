@@ -20,10 +20,13 @@ export const TextareaRef = ({
   selectedModelIsSupportsImage,
   setSelectedModelProvider,
   setSelectedModelIsSupportsImage,
+  setActivatePage,
+  pageContent,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const tagsContainerRef = useRef(null);
+  const [isComposing, setIsComposing] = useState(false);
 
   const { screenshotData, setScreenshotData, handleScreenshot } =
     useScreenshotHandler();
@@ -57,13 +60,11 @@ export const TextareaRef = ({
 
   // 4. 优化消息创建逻辑
   const createMessage = useCallback(
-    (text, imageData = null) => [
-      {
-        role: "user",
-        content: text,
-        ...(imageData && { imageData }),
-      },
-    ],
+    (text, imageData = null) => [{
+      role: "user",
+      content: text,
+      imageData: imageData
+    }],
     []
   );
 
@@ -137,10 +138,25 @@ export const TextareaRef = ({
     }
   };
 
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (isComposing) return;
+
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const trimmedValue = inputValue.trim();
+        if (trimmedValue && !isAiThinking && isContentReady) {
+          handleSubmit();
+        }
+      }
+    },
+    [inputValue, isAiThinking, isContentReady, handleSubmit, isComposing]
+  );
+
   return (
     <>
-      <div className="flex items-center gap-2 justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
           {tags.map((tag, index) => (
             <TagButton
               key={tag.type}
@@ -151,56 +167,21 @@ export const TextareaRef = ({
               useInput={useInput}
             />
           ))}
-        </div>
-        <div className="flex gap-2">
           <button
             onClick={onReset}
             disabled={isAiThinking}
-            className={`p-2 rounded-xl
+            className={`px-3 py-1.5 rounded-xl text-sm
               flex items-center justify-center
               transition-all duration-200
               ${
                 isAiThinking
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white"
+                  : "bg-white hover:bg-gray-50 text-gray-600 border border-gray-200"
               }
-              shadow-sm hover:shadow-md active:scale-[0.98] button-tag-newChat`}
+              shadow-sm hover:shadow-md active:scale-[0.98] button-tag-clearChat`}
           >
-            <Plus className="w-4 h-4" />
+            清除聊天
           </button>
-          <Tooltip
-            style={{
-              borderRadius: "8px",
-            }}
-            anchorSelect=".button-tag-newChat"
-            place="top"
-          >
-            新对话
-          </Tooltip>
-          <button
-            onClick={handleSubmit}
-            disabled={!inputValue.trim() || isAiThinking}
-            className={`p-2 rounded-xl
-              flex items-center justify-center
-              transition-all duration-200
-              ${
-                !inputValue.trim() || isAiThinking || !isContentReady
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200"
-              }
-              shadow-sm hover:shadow-md button-tag-submit`}
-          >
-            <Send className="w-4 h-4" />
-          </button>
-          <Tooltip
-            style={{
-              borderRadius: "8px",
-            }}
-            anchorSelect=".button-tag-submit"
-            place="top"
-          >
-            {isContentReady ? "发送消息" : "页面加载中..."}
-          </Tooltip>
         </div>
       </div>
       <div>
@@ -246,14 +227,16 @@ export const TextareaRef = ({
           <textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="请输入您的问题..."
             rows={4}
             className="block w-full rounded-md bg-white px-3 py-1.5 text-base 
               text-gray-900 outline-none resize-none min-h-[100px] max-h-[300px]
               placeholder:text-gray-400 sm:text-sm/6"
           />
-          <div className="relative mb-1">
+          <div className="flex items-center justify-between px-2 py-1">
             <ModelSelector
+              setActivatePage={setActivatePage}
               useInput={useInput}
               selectedModelProvider={selectedModelProvider}
               selectedModelIsSupportsImage={selectedModelIsSupportsImage}
@@ -265,6 +248,32 @@ export const TextareaRef = ({
               setSelectedModel={setSelectedModel}
               setScreenshotData={setScreenshotData}
             />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSubmit}
+                disabled={!inputValue.trim() || isAiThinking}
+                className={`p-2 rounded-xl
+                  flex items-center justify-center
+                  transition-all duration-200
+                  ${
+                    !inputValue.trim() || isAiThinking || !isContentReady
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200"
+                  }
+                  shadow-sm hover:shadow-md button-tag-submit`}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+              <Tooltip
+                style={{
+                  borderRadius: "8px",
+                }}
+                anchorSelect=".button-tag-submit"
+                place="top"
+              >
+                {isContentReady ? "发送消息" : "页面加载中..."}
+              </Tooltip>
+            </div>
           </div>
         </div>
       </div>

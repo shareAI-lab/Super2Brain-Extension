@@ -16,7 +16,7 @@ const tiltShakeAnimation = `@keyframes tilt-shake {
   100% { transform: rotate(0deg); }
 }`;
 
-const Login = () => {
+const Login = ({ setUserInput }) => {
   const [countdown, startCountdown] = useCountdown(0);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -71,6 +71,7 @@ const Login = () => {
         const data = await login({ email, code });
 
         if (data && data.access_token) {
+          setUserInput(data.access_token);
           await saveUserInput(data.access_token);
         } else {
           throw new Error("登录返回数据格式错误");
@@ -122,7 +123,7 @@ const Login = () => {
                     setEmail(e.target.value);
                     setEmailError("");
                   }}
-                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
+                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${
                     emailError
                       ? "border-red-500 animate-[tilt-shake_0.5s_ease-in-out]"
                       : "border-gray-300"
@@ -153,7 +154,7 @@ const Login = () => {
                     setCode(e.target.value);
                     setCodeError("");
                   }}
-                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
+                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${
                     codeError
                       ? "border-red-500 animate-[tilt-shake_0.5s_ease-in-out]"
                       : "border-gray-300"
@@ -162,7 +163,7 @@ const Login = () => {
                 <button
                   onClick={handleGetCode}
                   disabled={countdown > 0 || getCodeLoading}
-                  className="flex-none rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="flex-none rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   {countdown > 0
                     ? `${countdown}秒后重试`
@@ -179,7 +180,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="mt-6 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="mt-6 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               {loading ? "登录中..." : "登录"}
             </button>
@@ -197,7 +198,7 @@ const Login = () => {
                 );
               }}
               href="/privacy"
-              className="font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
+              className="font-medium text-indigo-600 hover:text-indigo-700 cursor-pointer"
             >
               隐私协议
             </a>{" "}
@@ -212,7 +213,7 @@ const Login = () => {
                 );
               }}
               href="/terms"
-              className="font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
+              className="font-medium text-indigo-600 hover:text-indigo-700 cursor-pointer"
             >
               服务条款
             </a>

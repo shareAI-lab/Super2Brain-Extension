@@ -175,8 +175,8 @@ export default function SecondRight({ isAllSelected, onImportSuccess }) {
   if (isLoading) return <div>加载中...</div>;
 
   return (
-    <div className="w-full h-full p-4">
-      <div className="h-[60vh] overflow-y-auto rounded-lg border border-gray-200 p-4 bg-white shadow-sm">
+    <div className="w-full h-full flex flex-col gap-4 p-4">
+      <div className="flex-1 overflow-y-auto rounded-lg p-4 bg-white">
         <CheckboxTree
           nodes={bookmarkTree}
           checked={selectedNodes}
@@ -186,17 +186,20 @@ export default function SecondRight({ isAllSelected, onImportSuccess }) {
           onExpand={setExpandedNodes}
           noCascade={false}
           showExpandAll={true}
-          className="text-gray-700"
+          className="text-gray-700 text-sm"
         />
       </div>
-      <button
-        id="syncSelectedBookmarksButton"
-        className="bg-indigo-500 text-white w-full px-4 py-3 mt-4 rounded-lg hover:bg-indigo-600 transition-colors duration-200 font-medium shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
-        onClick={handleSync}
-        disabled={!selectedNodes.length || isLoading}
-      >
-        {isLoading ? "正在导入..." : "导入选中的书签"}
-      </button>
+      
+      <div className="flex justify-end mt-4">
+        <button
+          id="syncSelectedBookmarksButton"
+          className="bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 transition-colors duration-200 font-medium shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+          onClick={handleSync}
+          disabled={!selectedNodes.length || isLoading}
+        >
+          {isLoading ? "正在导入..." : "导入"}
+        </button>
+      </div>
     </div>
   );
 }

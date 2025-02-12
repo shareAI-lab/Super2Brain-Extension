@@ -3,19 +3,64 @@ import { OpenAI } from "openai";
 import { getSystemPrompt } from "./getSystemPrompt";
 import { config } from "../../config/index";
 
-const MAX_CACHE_SIZE = 10;
-const searchCache = new Map();
+const determineSearchNeed = async (userInput, query, model) => {
+  const openai = new OpenAI({
+    apiKey: userInput,
+    baseURL: `${config.baseUrl}/text/v1`,
+    dangerouslyAllowBrowser: true,
+  });
 
-const openai = new OpenAI({
-  apiKey: config.apiKey,
-  baseURL: `${config.modelUrl}/v1`,
-  dangerouslyAllowBrowser: true,
-});
+  try {
+    // gpt-4o-mini 判断比较快，且准确。
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `你是一个判断助手。请判断用户的问题是否需要从知识库中进行向量搜索。
+                    对于普通的问候、翻译、数学计算等问题，不需要进行向量搜索。
+                    对于查询类或者其他类型的需要rag搜索的，则需要进行向量搜索。
+                    
+                    请直接返回一个JSON格式的结果，格式如下：
+                    {
+                      "needSearch": true/false,
+                      "reason": "这里是判断原因",
+                      "searchKeywords": "这里是搜索关键词"
+                    }`,
+        },
+        { role: "user", content: query },
+      ],
+    });
 
-const generateSimilarQuestions = async (query, response, onProgress) => {
+    const parsedContent = JSON.parse(response.choices[0].message.content);
+
+    return {
+      needSearch: Boolean(parsedContent.needSearch),
+      reason: String(parsedContent.reason || "未提供原因"),
+      searchKeywords: String(parsedContent.searchKeywords || query),
+    };
+  } catch (error) {
+    console.error("判断搜索需求时发生错误:", error);
+    return {
+      needSearch: false,
+      reason: "处理请求时发生错误",
+      searchKeywords: query,
+    };
+  }
+};
+
+const generateSimilarQuestions = (openai) => async (query, response, onProgress) => {
+  const processQuestions = (content) =>
+    (content || "").split("\n").filter((q) => q.trim());
+
+  const handleProgress = (questions) => {
+    onProgress?.({ stage: 5, questions });
+    return questions;
+  };
+
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model,
       messages: [
         {
           role: "system",
@@ -25,26 +70,28 @@ const generateSimilarQuestions = async (query, response, onProgress) => {
         {
           role: "user",
           content: `基于以下问题和回答，生成3个用户可能会继续追问的后续问题：
-          
-          原问题：${query}
-          回答：${response}
+        
+        原问题：${query}
+        回答：${response}
 
-          要求：
-          1. 问题要对原问题进行深入探讨
-          2. 寻求更多相关细节
-          3. 探索相关但不同的方面
+        要求：
+        1. 问题要对原问题进行深入探讨
+        2. 寻求更多相关细节
+        3. 探索相关但不同的方面
 
-          请直接返回3个问题，每个问题占一行。`,
+        请直接返回3个问题，每个问题占一行。`,
         },
       ],
     });
 
-    const questions = (completion.choices[0]?.message?.content || "")
-      .split("\n")
-      .filter((q) => q.trim());
-
-    onProgress?.({ stage: 5, questions });
-    return questions;
+    return Promise.resolve(completion)
+      .then((result) => result.choices[0]?.message?.content)
+      .then(processQuestions)
+      .then(handleProgress)
+      .catch((error) => {
+        console.error("生成相似问题时发生错误:", error);
+        return [];
+      });
   } catch (error) {
     console.error("生成相似问题时发生错误:", error);
     return [];
@@ -65,95 +112,83 @@ const formatVectorResults = (results) => {
     .join("\n");
 };
 
-const getVector = async (query, onProgress) => {
-  if (searchCache.has(query)) {
-    return searchCache.get(query);
-  } else {
-    try {
-      const results = await search(query);
-      console.log("results", results);
-      if (searchCache.size >= MAX_CACHE_SIZE) {
-        const firstKey = searchCache.keys().next().value;
-        searchCache.delete(firstKey);
-      }
-      if (Object.keys(results).length > 0) {
-        searchCache.set(query, Object.values(results));
-      }
+const getVector = async (userInput, query, onProgress) => {
+  try {
+    const results = await search(userInput, query);
+    console.log("results", results);
 
-      onProgress?.({
-        stage: 2,
-        results: Object.values(results),
-      });
+    onProgress?.({
+      stage: 2,
+      results: Object.values(results),
+    });
 
-      const formattedResults = formatVectorResults(Object.values(results));
-      return formattedResults;
-    } catch (error) {
-      console.error("搜索时发生错误:", error);
-      throw new Error("搜索失败");
-    }
+    const formattedResults = formatVectorResults(Object.values(results));
+    return formattedResults;
+  } catch (error) {
+    console.error("搜索时发生错误:", error);
+    throw new Error("搜索失败");
   }
 };
-
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "rerank_search",
-      description: "对搜索结果进行重排序，提高相关性",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string" },
-          top_n: {
-            type: "number",
-            description: "返回前N个最相关的结果",
-            default: 10,
-          },
-        },
-        required: ["query"],
-        additionalProperties: false,
-      },
-      strict: true,
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "analysis_pre_content",
-      description:
-        "对上下文进行分析，查看是否需要将前面的聊天记录的内容添加到当前的搜索结果中",
-      parameters: {
-        type: "object",
-        properties: {
-          messages: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                role: {
-                  type: "string",
-                  enum: ["user", "assistant"],
-                },
-                content: { type: "string" },
-              },
-              required: ["role", "content"],
-            },
-          },
-        },
-        required: ["messages"],
-        additionalProperties: false,
-      },
-    },
-  },
-];
 
 const formatFinalResponse = (response) => {
   return response.trim();
 };
 
-export const getResponse = async (query, preMessages, onProgress) => {
+export const getResponse = async (
+  query,
+  preMessages,
+  userInput,
+  model,
+  onProgress
+) => {
   onProgress?.({ stage: 1 });
-  const initialResults = await getVector(query, onProgress);
+
+  const openai = new OpenAI({
+    apiKey: userInput,
+    baseURL: `${config.baseUrl}/text/v1`,
+    dangerouslyAllowBrowser: true,
+  });
+
+  const { needSearch, reason, searchKeywords } = await determineSearchNeed(
+    userInput,
+    query,
+    model
+  );
+
+  if (!needSearch) {
+    onProgress?.({ stage: -1 });
+    const directResponse = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "你是一个友好的AI助手，可以帮助用户回答问题、闲聊和进行翻译。",
+        },
+        ...preMessages,
+        { role: "user", content: query },
+      ],
+      stream: false,
+    });
+
+    const formattedResponse = formatFinalResponse(
+      directResponse.choices[0].message.content
+    );
+
+    onProgress?.({
+      stage: 3,
+      response: formattedResponse,
+    });
+
+    const questionGenerator = generateSimilarQuestions(openai);
+    await questionGenerator(query, formattedResponse, onProgress);
+    return formattedResponse;
+  }
+
+  onProgress?.({
+    stage: 2,
+  });
+  const initialResults = await getVector(userInput, searchKeywords, onProgress);
 
   const messages = [
     {
@@ -166,88 +201,26 @@ export const getResponse = async (query, preMessages, onProgress) => {
     },
   ];
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages,
-    tools: tools,
+  onProgress?.({
+    stage: 4,
   });
 
-  const toolCalls = completion.choices[0].message.tool_calls;
-  if (toolCalls && toolCalls.length > 0) {
-    const updatedMessages = [...messages, completion.choices[0].message];
+  const completion = await openai.chat.completions.create({
+    model,
+    messages,
+    stream: false,
+  });
 
-    const toolResults = await Promise.all(
-      toolCalls.map(async (toolCall) => {
-        const args = JSON.parse(toolCall.function.arguments);
+  const formattedResponse = formatFinalResponse(
+    completion.choices[0].message.content
+  );
 
-        if (toolCall.function.name === "rerank_search") {
-          const cachedResults = searchCache.get(query) || [];
-          const rerankedResults = await rerankNotes({
-            query_text: query,
-            notes: cachedResults,
-            top_n: args.top_n || 10,
-          });
-
-          return {
-            role: "tool",
-            content: JSON.stringify({
-              type: "rerank_results",
-              results: Object.values(rerankedResults.data).map((note) => ({
-                title: note.title,
-                content: note.content,
-                summary: note.short_summary,
-              })),
-            }),
-            tool_call_id: toolCall.id,
-          };
-        }
-
-        if (toolCall.function.name === "analysis_pre_content") {
-          return {
-            role: "tool",
-            content: JSON.stringify({
-              type: "context_analysis",
-              previous_messages: args,
-            }),
-            tool_call_id: toolCall.id,
-          };
-        }
-
-        return null;
-      })
-    );
-
-    const validToolResults = toolResults.filter((result) => result !== null);
-    const finalMessages = [...updatedMessages, ...validToolResults];
-
-    const finalResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: finalMessages,
-      stream: true,
-    });
-
-    let accumulatedResponse = "";
-    for await (const chunk of finalResponse) {
-      const content = chunk.choices[0]?.delta?.content || "";
-      accumulatedResponse += content;
-    }
-    console.log("accumulatedResponse", accumulatedResponse);
-    const formattedResponse = formatFinalResponse(accumulatedResponse);
-    onProgress?.({
-      stage: 3,
-      response: formattedResponse,
-    });
-
-    await generateSimilarQuestions(query, formattedResponse, onProgress);
-
-    return formattedResponse;
-  }
-
-  const content = completion.choices[0].message.content || "";
   onProgress?.({
     stage: 3,
-    response: content,
+    response: formattedResponse,
   });
-  await generateSimilarQuestions(query, content, onProgress);
-  return content;
+
+  const questionGenerator = generateSimilarQuestions(openai);
+  await questionGenerator(query, formattedResponse, onProgress);
+  return formattedResponse;
 };

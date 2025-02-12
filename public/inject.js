@@ -75,7 +75,7 @@ const loadingButtonContent = `
     <div id="custom-alert">
       <div id="custom-alert-content">
         <p id="custom-alert-message"></p>
-        <button id="custom-alert-ok">OK</button>
+        <button id="custom-alert-ok" style="background-color: rgb(99, 102, 241); color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">OK</button>
       </div>
     </div>
   `;
@@ -106,53 +106,62 @@ const loadingButtonContent = `
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "SAVE_CONTENT") {
-      sendResponse({ received: true });
+      const processContent = async () => {
+        try {
+          button.disabled = true;
 
-      extractMarkdown(window.location.href)
-        .then(async function (markdown) {
+          const markdown = await extractMarkdown(window.location.href);
+
           const taskListResult = await new Promise((resolve) => {
             chrome.storage.local.get(["taskList"], resolve);
           });
+
           const taskList = taskListResult.taskList || [];
           const currentUrl = window.location.href;
+
           if (taskList.some((task) => task.url === currentUrl)) {
-            throw new Error("Task already exists");
+            showAlert("该网页已导入成功，请勿重复导入！");
+            return;
           }
 
-          return chrome.runtime.sendMessage({
-            action: "sendURL",
-            data: {
-              url: window.location.href,
-              markdown: markdown,
-              title: document.title,
-            },
+          const response = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage(
+              {
+                action: "sendURL",
+                data: {
+                  url: currentUrl,
+                  markdown: markdown,
+                  title: document.title,
+                },
+              },
+              (response) => {
+                if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                } else {
+                  resolve(response);
+                }
+              }
+            );
           });
-        })
-        .then(function (response) {
-          if (response.ok) {
-            showAlert(
-              '该网页已加入任务队列！<br>您可以在插件中查看任务状态，任务完成后可在 <a href="er2brain.com" target="_blank">Super2Brain</a> 中查看结果'
-            );
+
+          if (response?.ok) {
+            showAlert("导入成功，该网页已加入任务队列！");
           } else {
-            throw new Error("Failed to send URL");
+            throw new Error("发送失败");
           }
-        })
-        .catch(function (error) {
-          if (error.message === "Task already exists") {
-            showAlert("该网页已导入成功，请勿重复导入！");
-          } else {
-            console.error("Error processing page:", error);
-            showAlert(
-              "内容提取失败：<br>• 请检查网络连接<br>• 页面可能没有可提取的内容<br>• 页面可能受到访问限制"
-            );
-          }
-        })
-        .finally(function () {
+        } catch (error) {
+          console.error("Error processing page:", error);
+          showAlert(
+            "内容提取失败：<br>• 请检查网络连接<br>• 页面可能没有可提取的内容<br>• 页面可能受到访问限制"
+          );
+        } finally {
           button.innerHTML = svgButtonContent;
           button.disabled = false;
-        });
+        }
+      };
 
-      return false;
+      processContent();
+      return true;
     }
   });
 })();

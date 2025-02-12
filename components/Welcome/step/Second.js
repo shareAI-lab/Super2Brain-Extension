@@ -14,13 +14,17 @@ const ImportModal = ({ isOpen, onClose, onConfirm }) => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-[90%] max-w-4xl mx-4 shadow-lg">
+      <div className="fixed inset-0 bg-black/30" onClick={onClose} />
+      <div
+        className="relative bg-white rounded-lg p-6 w-[90%] max-w-4xl mx-4 
+        shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm"
+      >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold">选择要导入的书签</h3>
           <div className="flex items-center gap-4">
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-full"
+              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
             >
               <X size={20} />
             </button>
@@ -58,7 +62,8 @@ const SkipModal = ({ isOpen, onClose, onConfirm, onContinue }) => {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
       <div className="fixed inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative bg-white rounded-lg p-6 w-[90%] max-w-md mx-4 shadow-lg">
+      <div className="relative bg-white rounded-lg p-6 w-[90%] max-w-md mx-4 
+        shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm">
         <h3 className="text-xl font-semibold mb-4">确认跳过</h3>
         <p className="text-gray-600 mb-6">
           跳过导入步骤将无法使用书签相关的智能功能，确定要跳过吗？
@@ -66,8 +71,8 @@ const SkipModal = ({ isOpen, onClose, onConfirm, onContinue }) => {
         <div className="flex justify-end gap-4">
           <button
             onClick={onContinue}
-            className="px-4 py-2 text-sm rounded-lg transition-colors bg-blue-500 
-            text-white hover:bg-blue-600"
+            className="px-4 py-2 text-sm rounded-lg transition-colors bg-indigo-600 
+            text-white hover:bg-indigo-500"
           >
             继续导入
           </button>
@@ -125,7 +130,7 @@ export default function Second({ onNext }) {
         <button
           onClick={handleImportClick}
           className="w-fit flex items-center justify-center gap-2 px-6 py-3 text-base 
-          rounded-lg transition-colors bg-blue-500 text-white hover:bg-blue-600"
+          rounded-lg transition-colors bg-indigo-600 text-white hover:bg-indigo-500"
         >
           开始导入
           <ArrowRight size={20} />

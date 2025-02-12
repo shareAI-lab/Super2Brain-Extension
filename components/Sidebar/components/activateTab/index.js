@@ -3,6 +3,7 @@ import { ChatMessageList } from "./modules/ChatMessageList";
 import { TextareaRef } from "./modules/textarea";
 
 const ActivateTabChatPanel = ({
+  pageContent,
   useInput,
   selectedModelProvider,
   selectedModelIsSupportsImage,
@@ -19,11 +20,17 @@ const ActivateTabChatPanel = ({
   selectedModel,
   setSelectedModel,
   isContentReady,
+  setActivatePage,
+  currentUrlRelatedQuestions,
+  currentUrlLoading,
 }) => {
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white rounded-xl">
+    <div className="flex-1 flex flex-col h-[calc(100vh-8px)] overflow-hidden bg-white rounded-xl">
       <div className="flex-1 overflow-y-auto">
         <ChatMessageList
+          currentUrlRelatedQuestions={currentUrlRelatedQuestions}
+          currentUrlLoading={currentUrlLoading}
+          currentUrl={currentUrl}
           messages={getCurrentUrlMessages()}
           isAiThinking={isAiThinking}
           copiedMessageId={copiedMessageId}
@@ -33,6 +40,8 @@ const ActivateTabChatPanel = ({
       </div>
       <div className="p-4 bg-white w-full">
         <TextareaRef
+          pageContent={pageContent}
+          setActivatePage={setActivatePage}
           isContentReady={isContentReady}
           useInput={useInput}
           selectedModelProvider={selectedModelProvider}

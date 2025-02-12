@@ -104,24 +104,6 @@ export async function resetCounts() {
   await setFailedCount(0);
 }
 
-export async function getDeepSeekApiKey() {
-  const apiKey = await getItem("deepSeekApiKey");
-  return apiKey || "";
-}
-
-export async function setDeepSeekApiKey(apiKey) {
-  return setItem("deepSeekApiKey", apiKey);
-}
-
-export async function getDeepSeekBaseUrl() {
-  const baseUrl = await getItem("deepSeekBaseUrl");
-  return baseUrl || "";
-}
-
-export async function setDeepSeekBaseUrl(baseUrl) {
-  return setItem("deepSeekBaseUrl", baseUrl);
-}
-
 export async function setWebPreview(webPreview) {
   return setItem("webPreview", webPreview);
 }
@@ -129,6 +111,15 @@ export async function setWebPreview(webPreview) {
 export async function getWebPreview() {
   const webPreview = await getItem("webPreview");
   return webPreview ?? true;
+}
+
+export async function getDeepSeekApiKey() {
+  const apiKey = await getItem("deepSeekApiKey");
+  return apiKey || "";
+}
+
+export async function setDeepSeekApiKey(apiKey) {
+  return setItem("deepSeekApiKey", apiKey);
 }
 
 export async function setClaudeApiKey(apiKey) {
@@ -147,4 +138,176 @@ export async function setOpenaiApiKey(apiKey) {
 export async function getOpenaiApiKey() {
   const apiKey = await getItem("openaiApiKey");
   return apiKey || "";
+}
+
+export async function setOllamaConfig(url, apiKey) {
+  return setItem("ollamaConfig", { url, apiKey });
+}
+
+export async function getOllamaConfig() {
+  const config = await getItem("ollamaConfig");
+  return config || {};
+}
+
+export async function setLmstudioConfig(url, apiKey) {
+  return setItem("lmstudioConfig", { url, apiKey });
+}
+
+export async function getLmstudioConfig() {
+  const config = await getItem("lmstudioConfig");
+  return config || {};
+}
+
+export async function setOllamaModels(models) {
+  const formattedModels = models.reduce((acc, model) => {
+    const key = model.name;
+    acc[key] = {
+      id: model.name,
+      provider: "ollama",
+      supportsImage: false,
+      details: model.details || {},
+      size: model.size,
+      modified_at: model.modified_at,
+    };
+    return acc;
+  }, {});
+
+  return setItem("ollamaModels", formattedModels);
+}
+
+export async function getOllamaModels() {
+  const models = await getItem("ollamaModels");
+  return models || {};
+}
+
+export async function removeOllamaModels() {
+  return setItem("ollamaModels", null);
+}
+
+export async function removeDeepSeekApiKey() {
+  return setItem("deepSeekApiKey", null);
+}
+
+export async function removeClaudeApiKey() {
+  return setItem("claudeApiKey", null);
+}
+
+export async function removeOpenaiApiKey() {
+  return setItem("openaiApiKey", null);
+}
+
+export async function removeOllamaConfig() {
+  return setItem("ollamaConfig", null);
+}
+
+export async function removeLmstudioConfig() {
+  return setItem("lmstudioConfig", null);
+}
+
+// 设置自定义模型列表
+export async function setCustomModelIds(modelIds) {
+  return setItem("customModelIds", modelIds);
+}
+
+// 获取自定义模型列表
+export async function getCustomModelIds() {
+  const modelIds = await getItem("customModelIds");
+  return modelIds || [];
+}
+
+// 移除自定义模型列表
+export async function removeCustomModelIds() {
+  return setItem("customModelIds", null);
+}
+
+export async function setCustomApiKey(modelId, apiKey) {
+  return setItem(`customApiKey_${modelId}`, apiKey);
+}
+
+export const setCustomConfig = async (url, apiKey) => {
+  return setItem("customConfig", { url, apiKey });
+};
+
+export const getCustomConfig = async () => {
+  const config = await getItem("customConfig");
+  return config || {};
+};
+
+export const removeCustomConfig = async () => {
+  return setItem("customConfig", null);
+};
+
+export async function setCustomModels(models) {
+  const formattedModels = models.reduce((acc, modelId) => {
+    acc[modelId] = {
+      id: modelId,
+      provider: "custom",
+      supportsImage: false,
+    };
+    return acc;
+  }, {});
+
+  return setItem("customModels", formattedModels);
+}
+
+export async function getCustomModels() {
+  const models = await getItem("customModels");
+  return models || {};
+}
+
+export async function setLmstudioModels(models) {
+  const formattedModels = models.data.reduce((acc, model) => {
+    const key = model.id;
+    acc[key] = {
+      id: model.id,
+      provider: "lmstudio",
+      supportsImage: false,
+      details: {
+        object: model.object,
+        owned_by: model.owned_by,
+      },
+    };
+    return acc;
+  }, {});
+
+  return setItem("lmstudioModels", formattedModels);
+}
+
+export async function getLmstudioModels() {
+  const models = await getItem("lmstudioModels");
+  return models || {};
+}
+
+export async function removeLmstudioModels() {
+  return setItem("lmstudioModels", null);
+}
+
+export async function setUrlLoading(url) {
+  return setItem(`urlLoading-${url}`, true);
+}
+
+export async function getUrlLoading(url) {
+  return getItem(`urlLoading-${url}`);
+}
+
+export async function removeUrlLoading(url) {
+  return setItem(`urlLoading-${url}`, false);
+}
+
+export async function setWebSummary(url, webSummary) {
+  return setItem(`webSummary-${url}`, webSummary);
+}
+
+export async function getWebSummary(url) {
+  const summary = await getItem(`webSummary-${url}`);
+  return summary || "";
+}
+
+export async function setWebAnalysis(url, webAnalysis) {
+  return setItem(`webAnalysis-${url}`, webAnalysis);
+}
+
+export async function getWebAnalysis(url) {
+  const analysis = await getItem(`webAnalysis-${url}`);
+  return analysis || "";
 }

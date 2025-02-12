@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { config } from "../../../../config/index";
+
 export const createWebContent = (url, content, query) => ({
   url,
   content: content || "",
@@ -8,10 +9,17 @@ export const createWebContent = (url, content, query) => ({
 });
 
 export const createThingAgent = ({
-  apiKey = config.apiKey,
+  apiKey,
   model = "gpt-4o-mini",
-  baseURL = `${config.modelUrl}/v1`,
+  baseURL = `${config.baseUrl}/text/v1`,
 }) => {
+  
+  if (model === "Deepseek-R1") {
+    model = "deepseek-reasoner";
+  } else if (model === "Deepseek-V3") {
+    model = "deepseek-chat";
+  }
+
   const openai = new OpenAI({
     apiKey,
     baseURL,
@@ -47,44 +55,54 @@ export const createThingAgent = ({
   ) => {
     const focusPoints = await analyzeQuery(query);
 
-    const contextMessages = messageHistory.slice(-5).map((msg) => ({
-      role: msg.role,
-      content: msg.content,
+    const contextMessages = messageHistory.map(({ role, content }) => ({
+      role,
+      content,
     }));
 
-    const finalResponse = await documents.reduce(
-      async (prevResponsePromise, doc, index) => {
-        const prevResponse = await prevResponsePromise;
-
+    // 并行处理所有文档
+    const documentResponses = await Promise.all(
+      documents.map(async (doc) => {
         onStatusUpdate?.(doc.url, 1);
-
-        const messages = [
-          { role: "system", content: conversationPrompt },
-          ...contextMessages, 
-          {
-            role: "user",
-            content: `问题: ${query}\n关注点: ${focusPoints}\n当前内容: ${doc.content}`,
-          },
-        ];
-
-        if (prevResponse) {
-          messages.push({ role: "assistant", content: prevResponse });
-        }
 
         const response = await openai.chat.completions.create({
           model,
-          messages,
+          messages: [
+            { role: "system", content: conversationPrompt },
+            ...contextMessages,
+            {
+              role: "user",
+              content: `问题: ${query}\n关注点: ${focusPoints}\n当前内容: ${doc.content}`,
+            },
+          ],
           temperature: 0.7,
         });
 
         onStatusUpdate?.(doc.url, 2);
-
         return response.choices[0].message.content;
-      },
-      Promise.resolve("")
+      })
     );
 
-    return finalResponse;
+    // 合并所有文档的响应
+    const combinedContent = documentResponses.join("\n\n");
+
+    // 最终总结
+    const finalResponse = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: "请总结和整合以下所有内容，给出一个完整的回答：",
+        },
+        {
+          role: "user",
+          content: `问题: ${query}\n关注点: ${focusPoints}\n所有内容:\n${combinedContent}`,
+        },
+      ],
+      temperature: 0.7,
+    });
+
+    return finalResponse.choices[0].message.content;
   };
 
   return {

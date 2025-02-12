@@ -15,7 +15,7 @@ import {
   incrementFailedCount,
   resetCounts,
 } from "./storage.js";
-
+;
 // 存储每个标签页的状态
 const tabStates = new Map();
 
@@ -175,12 +175,13 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "sendURL") {
-    const { url, token, markdown, title } = message.data;
-    (async () => {
+    Promise.resolve().then(async () => {
       try {
+        const token = await getUserInput();
+        const { url, markdown, title } = message.data;
+
         await keepAlive(true);
-        const endpoint =
-          "https://api.super2brain.com/common/tasks/content-note";
+        const endpoint = `http://localhost:8000/common/tasks/content-note`;
 
         const response = await fetch(endpoint, {
           method: "POST",
@@ -197,7 +198,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const data = await response.json();
 
-        // 保存任务信息
         const newTask = {
           url,
           title,
@@ -216,7 +216,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } finally {
         await keepAlive(false);
       }
-    })();
+    });
     return true;
   }
 });
@@ -255,7 +255,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     captureVisibleTab()
       .then((result) => sendResponse(result))
       .catch((error) => sendResponse({ success: false, error: error.message }));
-    return true; // 保持消息通道打开
+    return true;
   }
 });
 
@@ -414,6 +414,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     extractMultiplePages(message.urls)
       .then((contents) => sendResponse({ success: true, contents }))
       .catch((error) => sendResponse({ success: false, error: error.message }));
-    return true; // 表示会异步发送响应
+    return true;
   }
 });

@@ -1,6 +1,3 @@
 export const config = {
-  token: "",
-  baseUrl: "",
-  modelUrl: "",
-  apiKey: "",
+  baseUrl: "http://localhost:8000",
 };

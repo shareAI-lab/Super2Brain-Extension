@@ -27,13 +27,24 @@
 	},
 	"content_scripts": [
 		{
-			"matches": ["<all_urls>"],
-			"js": ["Readability.js", "turndown.js", "inject.js", "content-script.js"],
-			"css": ["index.css"],
+			"matches": [
+				"<all_urls>"
+			],
+			"js": [
+				"Readability.js",
+				"turndown.js",
+				"inject.js",
+				"content-script.js"
+			],
+			"css": [
+				"index.css"
+			],
 			"run_at": "document_end"
 		}
 	],
-	"host_permissions": ["<all_urls>"],
+	"host_permissions": [
+		"<all_urls>"
+	],
 	"action": {
 		"default_popup": "index.html#/popup",
 		"default_title": "Super2Brain"
@@ -43,8 +54,16 @@
 	},
 	"web_accessible_resources": [
 		{
-			"resources": ["status.html", "status.js", "index.css", "welcome.html", "inject.js"],
-			"matches": ["<all_urls>"]
+			"resources": [
+				"status.html",
+				"status.js",
+				"index.css",
+				"welcome.html",
+				"inject.js"
+			],
+			"matches": [
+				"<all_urls>"
+			]
 		}
 	]
 }

@@ -1,20 +1,21 @@
 import {
-  MessageSquare,
-  Globe,
-  FileText,
-  MessageSquareShare,
   Settings,
   Scissors,
-  FileDigit,
   Star,
+  ScanSearch,
+  MessageSquareText,
+  Sparkle,
+  List,
 } from "lucide-react";
+import { DeepSearchSvg } from "./deepSearchSvg";
 
 export const ACTIVATE_ITEMS = [
-  { id: 0, icon: MessageSquare, tooltip: "网页速览" },
-  { id: 1, icon: Globe, tooltip: "网页问答" },
-  { id: 2, icon: FileText, tooltip: "联网搜索" },
-  { id: 3, icon: MessageSquareShare, tooltip: "知识库搜索" },
-  { id: 4, icon: Settings, tooltip: "设置" },
+  { id: 1, icon: MessageSquareText, tooltip: "网页问答" },
+  { id: 2, icon: ScanSearch, tooltip: "搜索问答" },
+  { id: 3, icon: DeepSearchSvg, tooltip: "Deep Search" },
+  { id: 0, icon: Sparkle, tooltip: "网页速览" },
+  { id: 4, icon: List, tooltip: "任务队列" },
+  { id: 5, icon: Settings, tooltip: "设置" },
 ];
 
 export const createTags = ({ currentModelSupportsImage }) => [
@@ -23,11 +24,5 @@ export const createTags = ({ currentModelSupportsImage }) => [
     icon: Scissors,
     type: "screenshot",
     disabled: !currentModelSupportsImage,
-  },
-  {
-    text: "收藏网页到知识库",
-    icon: Star,
-    type: "bookmark",
-    disabled: false,
   },
 ];

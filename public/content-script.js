@@ -69,7 +69,6 @@ async function initializeContentScript() {
   );
 }
 
-// 注入脚本的辅助函数
 function injectScript(scriptPath) {
   const script = document.createElement("script");
   script.src = scriptPath;
@@ -92,24 +91,19 @@ async function ensureDependencies() {
 // 初始化
 initializeContentScript();
 
-// 修改 extractMarkdown 函数以支持外部 URL
 async function extractMarkdown(url) {
   try {
     let documentToProcess;
 
-    // 这是正确的逻辑：
     if (url === window.location.href) {
-      // 如果是当前页面，直接使用当前 document
       documentToProcess = document.cloneNode(true);
     } else {
-      // 如果是其他页面，需要 fetch 获取内容
       const response = await fetch(url);
       const html = await response.text();
       const parser = new DOMParser();
       documentToProcess = parser.parseFromString(html, "text/html");
     }
 
-    // 获取页面基础信息
     const pageContent = {
       title: documentToProcess.title || "无标题",
       url: url,
@@ -118,7 +112,6 @@ async function extractMarkdown(url) {
         "",
     };
 
-    // 使用 Readability 解析主要内容
     const reader = new Readability(documentToProcess, {
       charThreshold: 0,
       keepClasses: false,
@@ -131,16 +124,13 @@ async function extractMarkdown(url) {
       throw new Error("无法提取页面内容");
     }
 
-    // 配置 Turndown
     const turndownService = new TurndownService({
       headingStyle: "atx",
       codeBlockStyle: "fenced",
     });
 
-    // 转换为 Markdown
     let markdown = turndownService.turndown(article.content);
 
-    // 构建元数据
     const metadata = [
       `# ${pageContent.title}`,
       "",
@@ -273,7 +263,6 @@ function createScreenshotUI() {
     buttonContainer.style.display = "flex";
   });
 
-  // 确认按钮点击事件
   confirmButton.addEventListener("click", async () => {
     const rect = selection.getBoundingClientRect();
     chrome.runtime.sendMessage({
@@ -289,7 +278,6 @@ function createScreenshotUI() {
     document.body.removeChild(overlay);
   });
 
-  // 取消按钮点击事件
   cancelButton.addEventListener("click", () => {
     document.body.removeChild(overlay);
   });
@@ -302,7 +290,6 @@ function createScreenshotUI() {
   document.body.appendChild(overlay);
 }
 
-// 监听消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "START_SCREENSHOT") {
     createScreenshotUI();

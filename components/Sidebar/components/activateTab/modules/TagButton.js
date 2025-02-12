@@ -15,7 +15,7 @@ const TagButton = memo(
       const disabledStyle = "bg-gray-100 text-gray-400 cursor-not-allowed";
 
       const activeStyles = isFirstTag
-        ? "bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white"
+        ? "bg-indigo-500 text-white hover:bg-indigo-600"
         : "bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 border border-gray-200";
 
       return `${baseClass} ${commonClasses} ${

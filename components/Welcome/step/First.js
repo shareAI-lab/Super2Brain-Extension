@@ -69,7 +69,7 @@ export default function First({ onNext, apiKey, setApiKey }) {
         setError("");
         setCodeError("");
         const data = await login({ email, code });
-
+        console.log(data);
         if (data && data.access_token) {
           await saveUserInput(data.access_token);
           setApiKey(data.access_token);
@@ -94,8 +94,11 @@ export default function First({ onNext, apiKey, setApiKey }) {
         <div className="w-full max-w-md">
           <Logo className="h-12 w-auto" />
           <h2 className="mt-8 text-2xl font-semibold text-gray-900">
-            登录您的账户
+            登录 / 注册账户
           </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            输入您的邮箱地址，新用户将自动完成注册,并登录账户
+          </p>
         </div>
 
         <div className="mt-8 w-full max-w-md">
@@ -124,7 +127,7 @@ export default function First({ onNext, apiKey, setApiKey }) {
                     setEmail(e.target.value);
                     setEmailError("");
                   }}
-                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
+                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${
                     emailError
                       ? "border-red-500 animate-[tilt-shake_0.5s_ease-in-out]"
                       : "border-gray-300"
@@ -155,7 +158,7 @@ export default function First({ onNext, apiKey, setApiKey }) {
                     setCode(e.target.value);
                     setCodeError("");
                   }}
-                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
+                  className={`block w-full rounded-lg border px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${
                     codeError
                       ? "border-red-500 animate-[tilt-shake_0.5s_ease-in-out]"
                       : "border-gray-300"
@@ -164,7 +167,7 @@ export default function First({ onNext, apiKey, setApiKey }) {
                 <button
                   onClick={handleGetCode}
                   disabled={countdown > 0 || getCodeLoading}
-                  className="flex-none rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="flex-none rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   {countdown > 0
                     ? `${countdown}秒后重试`
@@ -181,9 +184,9 @@ export default function First({ onNext, apiKey, setApiKey }) {
             <button
               type="submit"
               disabled={loading}
-              className="mt-6 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="mt-6 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              {loading ? "登录中..." : "登录"}
+              {loading ? "登录中..." : "登录 / 注册"}
             </button>
           </form>
 
@@ -191,14 +194,14 @@ export default function First({ onNext, apiKey, setApiKey }) {
             登录即表示您同意{" "}
             <a
               href="/privacy"
-              className="font-medium text-blue-600 hover:text-blue-700"
+              className="font-medium text-indigo-600 hover:text-indigo-700"
             >
               隐私协议
             </a>{" "}
             和{" "}
             <a
               href="/terms"
-              className="font-medium text-blue-600 hover:text-blue-700"
+              className="font-medium text-indigo-600 hover:text-indigo-700"
             >
               服务条款
             </a>

@@ -1,147 +1,99 @@
-import { Sparkles, Diamond, ChevronRight } from "lucide-react";
-import { memo, useMemo } from "react";
+import { useMemo } from "react";
 import { marked } from "marked";
+import { Package } from "lucide-react";
 
-const titleStyles = {
-  h1: "text-lg font-semibold mb-4",
-  h2: "text-base font-medium mb-3 text-gray-800",
-  h3: "text-lg font-semibold mb-2 text-gray-700",
-  h4: "text-base font-medium mb-2 text-gray-600",
-};
-
-const parseMarkdown = (content) => {
-  const parseLineContent = (line) => line.replace(/^[#\-\s]+/, "").trim();
-
-  const categorizeLines = (line) => ({
-    type: line.startsWith("# ")
-      ? "h1"
-      : line.startsWith("## ")
-      ? "h2"
-      : line.startsWith("- ")
-      ? "list"
-      : "text",
-    content: parseLineContent(line),
-  });
-
-  const buildStructure = (lines) =>
-    lines.reduce((structure, line) => {
-      const { type, content } = categorizeLines(line);
-
-      if (!structure.length && type !== "h1") {
-        structure.push({ type: "h1", title: "未分类", children: [] });
-      }
-
-      const currentSection = structure[structure.length - 1];
-
-      switch (type) {
-        case "h1":
-          structure.push({ type: "h1", title: content, children: [] });
-          break;
-        case "h2":
-          if (currentSection) {
-            currentSection.children.push({
-              type: "h2",
-              title: content,
-              content: [],
-            });
-          }
-          break;
-        case "list":
-          if (currentSection) {
-            const lastH2 = currentSection.children[
-              currentSection.children.length - 1
-            ] || { type: "h2", title: "", content: [] };
-
-            if (!currentSection.children.length) {
-              currentSection.children.push(lastH2);
-            }
-
-            lastH2.content.push(content);
-          }
-          break;
-      }
-
-      return structure;
-    }, []);
-
-  const lines = content.split("\n").filter(Boolean);
-  return buildStructure(lines);
-};
-
-const ListItem = memo(({ content, theme = "blue" }) => (
-  <li className="text-gray-600 mb-2 flex items-start gap-2 text-sm">
-    <ChevronRight
-      className={`w-3 h-3 mt-1 ${
-        theme === "red" ? "text-red-400" : "text-blue-400"
-      }`}
-    />
-    <span
-      className="flex-1"
-      dangerouslySetInnerHTML={{ __html: marked.parseInline(content) }}
-    />
-  </li>
-));
-
-const H1Section = memo(({ title, children = [], theme = "blue" }) => (
-  <div className="mb-6">
-    <h1 className={`${titleStyles.h1} flex items-center gap-2`}>
-      <Sparkles
-        className={`w-5 h-5 ${
-          theme === "red" ? "text-red-500" : "text-blue-500"
-        }`}
-        strokeWidth={1.5}
-      />
-      {title}
-    </h1>
-    <div className="pl-6 space-y-4">
-      {children.map((h2, idx) => (
-        <H2Section key={idx} {...h2} theme={theme} />
-      ))}
+const PlaceHolder = () => {
+  return (
+    <div className="flex-1 min-h-[400px] flex items-center justify-center">
+      <div className="p-8 text-center hover:scale-105 transition-all duration-300">
+        <div className="flex flex-col items-center justify-center gap-6">
+          <div className="w-24 h-24 bg-white shadow-lg rounded-xl flex items-center justify-center">
+            <Package className="w-14 h-14 text-indigo-600" />
+          </div>
+          <div className="space-y-3">
+            <div className="font-medium text-gray-700 text-lg">
+              出了一点小错
+            </div>
+            <div className="text-sm text-gray-500 max-w-xs">
+              服务繁忙，请稍后再试
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-));
+  );
+};
 
-const H2Section = memo(({ title, content = [], theme = "blue" }) => (
-  <div className="relative">
-    <div className="absolute left-[-24px] top-0 bottom-0 w-px bg-gray-100" />
-    <h2 className={`${titleStyles.h2} flex items-center gap-2`}>
-      <Diamond
-        className={`w-4 h-4 ${
-          theme === "red" ? "text-red-400" : "text-blue-400"
-        }`}
-        strokeWidth={1.5}
-      />
-      {title}
-    </h2>
-    <ul className="list-none pl-6">
-      {content.map((item, idx) => (
-        <ListItem key={idx} content={item} theme={theme} />
-      ))}
-    </ul>
-  </div>
-));
+export { PlaceHolder };
 
-const MarkdownRenderer = ({ content = "", criticalAnalysis = "" }) => {
-  const sections = useMemo(
-    () => (content ? parseMarkdown(content) : []),
-    [content]
+const MarkdownRenderer = ({
+  content = "",
+  criticalAnalysis = "",
+  currentUrlTab,
+  setCurrentUrlTab,
+  isLoading = false,
+}) => {
+  const tabs = useMemo(
+    () => [
+      { id: "welcome", name: "亮点" },
+      { id: "analysis", name: "批判" },
+    ],
+    []
   );
 
-  const analysis = useMemo(
-    () => (criticalAnalysis ? parseMarkdown(criticalAnalysis) : []),
-    [criticalAnalysis]
-  );
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      );
+    }
+
+    if (currentUrlTab === "welcome") {
+      return content ? (
+        <div className="prose prose-sm md:prose-base lg:prose-lg prose-slate mx-4">
+          <div dangerouslySetInnerHTML={{ __html: marked(content) }} />
+        </div>
+      ) : (
+        <PlaceHolder />
+      );
+    }
+
+    return criticalAnalysis ? (
+      <div className="prose prose-sm md:prose-base lg:prose-lg prose-red mx-4">
+        <div
+          dangerouslySetInnerHTML={{
+            __html: marked(criticalAnalysis),
+          }}
+        />
+      </div>
+    ) : (
+      <PlaceHolder />
+    );
+  };
 
   return (
-    <div className="w-full h-full bg-white rounded-xl">
-      <div className="p-8 w-full">
-        {sections.map((section, idx) => (
-          <H1Section key={idx + "sections1"} {...section} theme="blue" />
-        ))}
-        {analysis.map((section, idx) => (
-          <H1Section key={idx + "analysis1"} {...section} theme="red" />
-        ))}
+    <div className="w-full max-w-3xl mx-auto bg-white rounded-xl">
+      <div className="flex-shrink-0 pt-4">
+        <div className="flex justify-center gap-1 p-1 bg-gray-100 rounded-xl w-fit mx-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setCurrentUrlTab(tab.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                ${
+                  currentUrlTab === tab.id
+                    ? "bg-blue-50 text-indigo-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+            >
+              {tab.name}
+            </button>
+          ))}
+        </div>
       </div>
+      <div className="px-6 md:p-8">{renderContent()}</div>
     </div>
   );
 };

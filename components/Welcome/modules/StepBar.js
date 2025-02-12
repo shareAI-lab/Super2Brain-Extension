@@ -7,13 +7,13 @@ export default function StepBar({ currentStep = 1, totalSteps = 2, onChange }) {
             key={index}
             onClick={() => onChange?.(index + 1)}
             className={`h-1 flex-1 rounded-full transition-colors ${
-              index < currentStep ? 'bg-blue-500' : 'bg-blue-200/70'
+              index < currentStep ? "bg-indigo-500" : "bg-indigo-200/70"
             } ${
-              index + 1 > currentStep ? 'cursor-not-allowed' : 'cursor-pointer'
+              index + 1 > currentStep ? "cursor-not-allowed" : "cursor-pointer"
             }`}
           />
         ))}
       </div>
     </div>
-  )
-} 
+  );
+}

@@ -1,11 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { marked } from "marked";
-import { Bot, Copy, Check, RefreshCw, Loader2 } from "lucide-react";
 import {
-  setUrlLoading,
-  getUrlLoading,
-  removeUrlLoading,
-} from "../../../../../public/storage";
+  Bot,
+  Copy,
+  Check,
+  RefreshCw,
+  Loader2,
+  MessageSquare,
+  Globe,
+} from "lucide-react";
+import { Loading } from "../../common/loading";
 
 const MessageContent = ({ content }) => {
   const commonClassNames = `text-sm break-words leading-relaxed prose prose-sm max-w-none 
@@ -59,98 +63,129 @@ export const ChatMessageList = ({
   currentUrl,
   currentUrlRelatedQuestions,
   currentUrlLoading,
+  onQuestionClick,
 }) => {
-  const [isSaving, setIsSaving] = useState(false);
+  const [pageTitle, setPageTitle] = useState("");
 
-  const handleBookmarkSave = async () => {
-    const isLoading = await getUrlLoading(currentUrl);
-
-    if (isLoading) {
-      setIsSaving(true);
-      setTimeout(() => setIsSaving(false), 500);
-      return;
-    }
-
-    await setUrlLoading(currentUrl);
-
+  const getPageTitle = async () => {
     try {
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
       });
-
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        type: "SAVE_CONTENT",
-      });
-
-      if (!response?.received) {
-        throw new Error("保存失败");
-      }
-      return { success: true };
+      setPageTitle(tab.title);
     } catch (error) {
-      console.error("收藏失败:", error);
-      throw error;
-    } finally {
-      await removeUrlLoading(currentUrl);
+      console.error("获取页面标题失败:", error);
     }
   };
 
-  const renderRelatedQuestions = () => {
-    if (currentUrlLoading) return null;
+  useEffect(() => {
+    getPageTitle();
 
+    const handleTabUpdate = (tabId, changeInfo) => {
+      if (changeInfo.title) {
+        getPageTitle();
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(handleTabUpdate);
+
+    return () => {
+      chrome.tabs.onUpdated.removeListener(handleTabUpdate);
+    };
+  }, [currentUrl]);
+
+  const renderRelatedQuestions = () => {
     return (
-      <div className="mt-8 text-left">
-        <h3 className="text-lg font-semibold mb-2 pl-2">相关问题</h3>
-        <ul className="space-y-2 pl-2">
-          {currentUrlRelatedQuestions.map((question, index) => (
-            <li key={index} className="text-sm text-gray-600">
-              {question}
-            </li>
-          ))}
-        </ul>
+      <div className="absolute bottom-[40px] left-4 z-10">
+        <div className="text-base font-medium text-gray-700 mb-3 flex items-center">
+          <MessageSquare className="w-4 h-4 mr-2" />
+          猜你想问
+        </div>
+        {currentUrlLoading ? (
+          <div className="flex items-center gap-2">
+            <Loading />
+          </div>
+        ) : (
+          currentUrlRelatedQuestions.map((question, index) => (
+            <div
+              key={index}
+              onClick={() => onQuestionClick(question.replace(/^\d+\.\s*/, ""))}
+              className="flex items-center gap-2 text-sm text-gray-600 mb-2 
+                px-4 py-2 rounded-lg bg-gray-50 border border-gray-100
+                hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 
+                hover:shadow-sm transform hover:-translate-y-0.5
+                cursor-pointer transition-all duration-200"
+            >
+              <span>
+                {index + 1}. {question}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     );
   };
 
-  const renderEmptyState = () => (
-    <div className="flex-1 h-full flex items-center justify-center">
-      <div className="p-8 text-center hover:scale-105 transition-all duration-300">
-        <div className="flex flex-col items-center justify-center gap-6">
-          <div className="w-24 h-24 bg-white shadow-lg rounded-xl flex items-center justify-center">
-            <Bot className="w-14 h-14 text-indigo-600" />
-          </div>
-          <div className="space-y-3">
-            <div className="font-medium text-gray-700 text-lg">Web助手</div>
-            <div className="text-sm text-gray-500 max-w-xs">
-              对页面内容感兴趣？直接询问我吧 ！
-            </div>
-            <button
-              onClick={() => handleBookmarkSave()}
-              disabled={isSaving}
-              className={`mt-8 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 
-                disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200
-                ${isSaving ? "animate-shake" : ""}`}
-            >
-              {isSaving ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>正在保存...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 hover:underline">
-                  <span>觉得该网页不错？收藏该网页</span>
-                </div>
-              )}
-            </button>
+  const renderPageTitle = () => {
+    const truncateTitle = (title) => {
+      return title.length > 30 ? `${title.slice(0, 30)}...` : title;
+    };
+
+    return (
+      pageTitle && (
+        <div className="w-full mb-4">
+          <div
+            className="flex items-center gap-2 text-sm text-gray-600 font-medium 
+            bg-gradient-to-r from-white via-gray-50 to-indigo-50/30
+            backdrop-blur-md px-3 py-1.5 rounded-lg 
+            shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)] 
+            border border-gray-200
+            hover:border-indigo-200 hover:from-white hover:to-indigo-100/50 
+            hover:shadow-md
+            transition-all duration-200
+            w-full"
+          >
+            <Globe className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span className="bg-gradient-to-r from-gray-700 to-gray-600 bg-clip-text text-transparent truncate">
+              {truncateTitle(pageTitle)}
+            </span>
           </div>
         </div>
-        {renderRelatedQuestions()}
+      )
+    );
+  };
+
+  const renderEmptyState = () => {
+    return (
+      <div className="flex-1 h-full flex items-center justify-center">
+        <div className="relative w-full h-full flex flex-col items-center justify-center">
+          <div className="p-8 text-center">
+            <div className="hover:scale-105 transition-all duration-300">
+              <div className="flex flex-col items-center justify-center gap-6">
+                <div className="w-24 h-24 bg-white shadow-lg rounded-xl flex items-center justify-center">
+                  <Bot className="w-14 h-14 text-indigo-600" />
+                </div>
+                <div className="space-y-3">
+                  <div className="font-medium text-gray-700 text-lg">
+                    Web助手
+                  </div>
+                  <div className="text-sm text-gray-500 max-w-xs">
+                    对页面内容感兴趣？直接询问我吧 ！
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {renderRelatedQuestions()}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-4 relative bg-white rounded-xl flex flex-col h-full">
+      {renderPageTitle()}
       {messages.length === 0 ? (
         renderEmptyState()
       ) : (
@@ -181,7 +216,7 @@ export const ChatMessageList = ({
                   </div>
                 )}
 
-                <div className={msg.role === "assistant" ? "p-4" : "p-1"}>
+                <div className={msg.role === "assistant" ? "p-4" : "px-2"}>
                   <MessageContent content={msg.content} />
 
                   {msg.role === "assistant" && (

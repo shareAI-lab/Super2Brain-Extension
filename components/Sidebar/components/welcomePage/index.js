@@ -2,6 +2,8 @@ import { Check, Loader2, Globe } from "lucide-react";
 import { MarkdownRenderer } from "./modules/parseMrakdown";
 import { CouldNotGetWebContent } from "./modules/couldNotGetWebContent";
 import { NoLogin } from "./modules/noLogin";
+import { Loading } from "../common/loading";
+
 const WelcomePage = ({
   currentUrlTab,
   setCurrentUrlTab,
@@ -48,17 +50,13 @@ const WelcomePage = ({
                 </div>
                 <div>
                   <div className="font-medium">页面内容已加载</div>
-                  <div className="text-sm text-gray-500">{currentUrl}</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                  <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
-                </div>
+              <div className="flex flex-col items-center gap-2">
+                <Loading />
                 <div>
-                  <div className="font-medium">super2brain分析内容解析</div>
-                  <div className="text-sm text-gray-500">全力分析中... </div>
+                  <div className="font-medium">S2B正在全力分析</div>
                 </div>
               </div>
             </div>

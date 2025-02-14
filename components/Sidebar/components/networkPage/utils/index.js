@@ -111,14 +111,19 @@ const getDirectResponse = async (userInput, messageHistory, model) => {
   }
 };
 
-const getResponse = async (query, onProgress, messageHistory = [], model) => {
-  const inputType = await analyzeInputType(query, messageHistory, model);
+const getResponse = async (
+  query,
+  onProgress,
+  messageHistory = [],
+  model = "gpt-4o-mini"
+) => {
+  const inputType = await analyzeInputType(query, messageHistory, "gpt-4o-mini");
 
   if (inputType === "SEARCH") {
     const searchUrl = await analyzeAndCreateSearchUrl(
       query,
       messageHistory,
-      model
+      "gpt-4o-mini"
     );
     onProgress({ state: 1, searchUrl });
   } else if (
@@ -127,7 +132,7 @@ const getResponse = async (query, onProgress, messageHistory = [], model) => {
     const directResponse = await getDirectResponse(
       query,
       messageHistory,
-      model
+      model.toLowerCase()
     );
     onProgress({ state: 2, response: directResponse });
   }

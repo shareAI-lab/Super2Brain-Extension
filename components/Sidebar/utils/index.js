@@ -3,6 +3,7 @@ import { OpenAI } from "openai";
 import { getSystemPrompt } from "./getSystemPrompt";
 import { config } from "../../config/index";
 
+
 const determineSearchNeed = async (userInput, query, model) => {
   const openai = new OpenAI({
     apiKey: userInput,
@@ -11,15 +12,14 @@ const determineSearchNeed = async (userInput, query, model) => {
   });
 
   try {
-    // gpt-4o-mini 判断比较快，且准确。
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `你是一个判断助手。请判断用户的问题是否需要从知识库中进行向量搜索。
-                    对于普通的问候、翻译、数学计算等问题，不需要进行向量搜索。
-                    对于查询类或者其他类型的需要rag搜索的，则需要进行向量搜索。
+                    对于普通的问候、翻译、数学计算这三种问题，不需要进行向量搜索。
+                    对于其他问题，则需要进行向量搜索。
                     
                     请直接返回一个JSON格式的结果，格式如下：
                     {
@@ -49,27 +49,28 @@ const determineSearchNeed = async (userInput, query, model) => {
   }
 };
 
-const generateSimilarQuestions = (openai) => async (query, response, onProgress) => {
-  const processQuestions = (content) =>
-    (content || "").split("\n").filter((q) => q.trim());
+const generateSimilarQuestions =
+  (openai) => async (query, response, onProgress) => {
+    const processQuestions = (content) =>
+      (content || "").split("\n").filter((q) => q.trim());
 
-  const handleProgress = (questions) => {
-    onProgress?.({ stage: 5, questions });
-    return questions;
-  };
+    const handleProgress = (questions) => {
+      onProgress?.({ stage: 5, questions });
+      return questions;
+    };
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "你是一个帮助生成相关问题的AI助手。请基于用户的上一个问题和回答，生成3个后续问题。",
-        },
-        {
-          role: "user",
-          content: `基于以下问题和回答，生成3个用户可能会继续追问的后续问题：
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "你是一个帮助生成相关问题的AI助手。请基于用户的上一个问题和回答，生成3个后续问题。",
+          },
+          {
+            role: "user",
+            content: `基于以下问题和回答，生成3个用户可能会继续追问的后续问题：
         
         原问题：${query}
         回答：${response}
@@ -80,23 +81,23 @@ const generateSimilarQuestions = (openai) => async (query, response, onProgress)
         3. 探索相关但不同的方面
 
         请直接返回3个问题，每个问题占一行。`,
-        },
-      ],
-    });
-
-    return Promise.resolve(completion)
-      .then((result) => result.choices[0]?.message?.content)
-      .then(processQuestions)
-      .then(handleProgress)
-      .catch((error) => {
-        console.error("生成相似问题时发生错误:", error);
-        return [];
+          },
+        ],
       });
-  } catch (error) {
-    console.error("生成相似问题时发生错误:", error);
-    return [];
-  }
-};
+
+      return Promise.resolve(completion)
+        .then((result) => result.choices[0]?.message?.content)
+        .then(processQuestions)
+        .then(handleProgress)
+        .catch((error) => {
+          console.error("生成相似问题时发生错误:", error);
+          return [];
+        });
+    } catch (error) {
+      console.error("生成相似问题时发生错误:", error);
+      return [];
+    }
+  };
 
 const formatVectorResults = (results) => {
   return results
@@ -188,7 +189,17 @@ export const getResponse = async (
   onProgress?.({
     stage: 2,
   });
+
   const initialResults = await getVector(userInput, searchKeywords, onProgress);
+
+  if (initialResults.length === 0) {
+    onProgress?.({
+      stage: 3,
+      response:
+        "不好意思，您的知识库中暂时没有相关内容，请您换一个关键词试试。",
+    });
+    return;
+  }
 
   const messages = [
     {
@@ -205,22 +216,29 @@ export const getResponse = async (
     stage: 4,
   });
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages,
-    stream: false,
-  });
+  try {
+    const completion = await openai.chat.completions.create({
+      model,
+      messages,
+      stream: false,
+    });
 
-  const formattedResponse = formatFinalResponse(
-    completion.choices[0].message.content
-  );
+    const formattedResponse = formatFinalResponse(
+      completion.choices[0].message.content
+    );
 
-  onProgress?.({
-    stage: 3,
-    response: formattedResponse,
-  });
+    onProgress?.({
+      stage: 3,
+      response: formattedResponse,
+    });
 
-  const questionGenerator = generateSimilarQuestions(openai);
-  await questionGenerator(query, formattedResponse, onProgress);
-  return formattedResponse;
+    const questionGenerator = generateSimilarQuestions(openai);
+    await questionGenerator(query, formattedResponse, onProgress);
+    return formattedResponse;
+  } catch (error) {
+    onProgress?.({
+      stage: 6,
+      response: "服务器不稳定，请您切换其他模型或者检查网络。",
+    });
+  }
 };

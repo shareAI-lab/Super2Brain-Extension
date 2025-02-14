@@ -15,7 +15,7 @@ export const createThingAgent = ({
 }) => {
   
   if (model === "Deepseek-R1") {
-    model = "deepseek-reasoner";
+    model = "asoner";
   } else if (model === "Deepseek-V3") {
     model = "deepseek-chat";
   }

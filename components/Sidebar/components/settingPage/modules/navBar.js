@@ -1,4 +1,4 @@
-import { Settings, Cpu, Info } from "lucide-react";
+import { Settings, Cpu, Info, Bell } from "lucide-react";
 
 const tabs = [
   { name: "基础设置", icon: Settings },

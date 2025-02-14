@@ -1,0 +1,11 @@
+{
+    "version": "1.1.1",
+    "downloadUrl": "https://extension-update.oss-cn-beijing.aliyuncs.com/out.crx",
+    "publishDate": "2025-02-13",
+    "releaseNotes": "更新功能:&深度搜索完善&添加更新功能",
+    "fixNotes": "修复&深度搜索&添加更新功能",
+    "checkUpdateTime": 1676246400000,
+    "choremUpdateUrl": "https://extension-update.oss-cn-beijing.aliyuncs.com/update.xml", 
+    "edgeUpdateUrl": "https://extension-update.oss-cn-beijing.aliyuncs.com/out.crx",
+    "updateDocs": "https://x.super2brain.com/docs/update"       
+}

@@ -72,9 +72,8 @@ export const SettingPage = ({
   onClose,
   updateDeepSeekConfig,
   userInput,
-  setUserInput
+  setUserInput,
 }) => {
-
   const [modelList, setModelList] = useState([]);
 
   const handleChange = (model, field) => (event) => {
@@ -157,7 +156,7 @@ export const SettingPage = ({
           handleChange={handleChange}
         />
       ) : (
-        <Login setUserInput={setUserInput}/>
+        <Login setUserInput={setUserInput} />
       )}
     </>
   );

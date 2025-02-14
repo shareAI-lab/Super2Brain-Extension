@@ -1,10 +1,19 @@
-import { Send, Loader2, Copy, Check } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  ChevronUp,
+  ChevronDown,
+  Brain,
+  Check,
+  Menu,
+} from "lucide-react";
 import { Tooltip } from "react-tooltip";
 import { getResponse } from "../../core/agent.js";
 import { marked } from "marked";
 import { PlaceHolder } from "./modules/placeHolder";
 import { TypeWriter } from "./modules/TypeWriter";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { OptionsMenu } from "./modules/OptionsMenu";
 
 const DeepSearch = ({
   query,
@@ -15,17 +24,49 @@ const DeepSearch = ({
   onSendMessage,
   isDeepThingActive,
   setIsDeepThingActive,
+  maxDepth,
+  setMaxDepth,
+  needTime,
 }) => {
-  const [copiedMessageId, setCopiedMessageId] = useState(null);
+  const messagesEndRef = useRef(null);
+  const statusBoxRef = useRef(null);
+  const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleCopy = async (content, messageId) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopiedMessageId(messageId);
-      setTimeout(() => setCopiedMessageId(null), 2000);
-    } catch (err) {
-      console.error("复制失败:", err);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const scrollStatusToBottom = () => {
+    if (statusBoxRef.current) {
+      statusBoxRef.current.scrollTop = statusBoxRef.current.scrollHeight;
     }
+  };
+
+  useEffect(() => {
+    if (
+      Array.isArray(currentStatus) &&
+      messages.length > 0 &&
+      !messages[messages.length - 1].isComplete
+    ) {
+      scrollToBottom();
+    }
+  }, [currentStatus, messages]);
+
+  useEffect(() => {
+    if (messages.length > 0 && messages[messages.length - 1].isComplete) {
+      setIsThinkingCollapsed(true);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (Array.isArray(currentStatus) && !isThinkingCollapsed) {
+      scrollStatusToBottom();
+    }
+  }, [currentStatus, isThinkingCollapsed]);
+
+  const handleModelChange = (event) => {
+    setModelType(parseInt(event.target.value));
   };
 
   const handleSendMessage = async () => {
@@ -47,58 +88,95 @@ const DeepSearch = ({
           </div>
         ) : (
           <div>
-            {!msg.isComplete && Array.isArray(currentStatus) && (
+            {Array.isArray(currentStatus) && (
               <div className="mb-6 animate-fadeIn">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-4">
-                  思考过程
+                <div
+                  className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-4 flex items-center cursor-pointer select-none hover:text-gray-700"
+                  onClick={() => setIsThinkingCollapsed(!isThinkingCollapsed)}
+                >
+                  <span>思考过程</span>
+                  <div className="ml-2 flex items-center">
+                    {isThinkingCollapsed ? (
+                      <>
+                        <ChevronDown className="w-4 h-4" />
+                        <span>收起</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronUp className="w-4 h-4" />
+                        <span>展开</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="font-mono text-sm border border-gray-200 rounded-lg p-4">
-                  <ul className="space-y-2">
-                    {currentStatus.map((status, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-start space-x-2 text-gray-900 animate-fadeIn"
-                      >
-                        <span className="text-blue-600 flex-shrink-0 select-none">
-                          {idx === currentStatus.length - 1 ? ">" : "$"}
-                        </span>
-                        <div className="flex items-center space-x-2">
-                          <TypeWriter
-                            text={status}
-                            onComplete={() => {
-                              // 可以在这里添加打字完成后的回调
-                            }}
-                            className={
-                              idx === currentStatus.length - 1
-                                ? "animate-pulse"
-                                : ""
-                            }
-                          />
-                          {idx === currentStatus.length - 1 && (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0 ml-1" />
-                          )}
+                {!isThinkingCollapsed && (
+                  <>
+                    <div
+                      ref={statusBoxRef}
+                      className="font-mono text-sm border border-gray-200 rounded-lg p-4 max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
+                    >
+                      <ul className="space-y-2">
+                        {currentStatus.map((status, idx) => (
+                          <li
+                            key={idx}
+                            className="flex items-start space-x-2 text-gray-900 animate-fadeIn"
+                          >
+                            <span className="text-blue-600 flex-shrink-0 select-none">
+                              {idx === currentStatus.length - 1 ? ">" : "$"}
+                            </span>
+                            <div className="flex items-center space-x-2">
+                              <TypeWriter
+                                text={status}
+                                isPulsing={idx === currentStatus.length - 1}
+                                onComplete={() => {}}
+                                className={
+                                  idx === currentStatus.length - 1
+                                    ? "animate-pulse"
+                                    : ""
+                                }
+                              />
+                              {idx === currentStatus.length - 1 && (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0 ml-1" />
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="mt-4">
+                      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <svg
+                            className="w-5 h-5 text-blue-500 animate-spin"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeDasharray="1 3"
+                            />
+                          </svg>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-blue-700">
+                              预计需要时间：{needTime || "计算中..."} 分钟
+                            </span>
+                            <span className="text-xs text-blue-600 mt-1">
+                              S2B正在操作你的浏览器进度sendup思考，请不要关闭侧边栏
+                            </span>
+                          </div>
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {msg.isComplete && (
               <div className="px-1 relative group">
-                <button
-                  onClick={() => handleCopy(msg.content, index)}
-                  className="fixed bottom-24 right-6 p-2.5 rounded-xl
-                    bg-indigo-500 hover:bg-indigo-600
-                    transition-all duration-200 shadow-lg
-                    flex items-center justify-center"
-                >
-                  {copiedMessageId === index ? (
-                    <Check className="w-5 h-5 text-white" />
-                  ) : (
-                    <Copy className="w-5 h-5 text-white" />
-                  )}
-                </button>
                 <div
                   className="
                     prose prose-gray max-w-none
@@ -117,7 +195,7 @@ const DeepSearch = ({
                     prose-a:text-blue-600 prose-a:no-underline prose-a:font-medium
                     hover:prose-a:text-blue-700 hover:prose-a:underline 
                     hover:prose-a:decoration-blue-500/30 hover:prose-a:decoration-2  
-                    prose-code:px-1.5 prose-code:py-0.5 prose-code:bg-gray-100
+                    prose-code:px-1.5 prose-code:py-0.5
                     prose-code:rounded prose-code:text-xs prose-code:font-mono 
                     prose-code:text-gray-900 prose-code:before:content-none 
                     prose-code:after:content-none
@@ -150,15 +228,74 @@ const DeepSearch = ({
 
   return (
     <div className="w-full h-[calc(100vh-8px)] flex flex-col bg-white rounded-sm">
+      <div className="px-8 py-4">
+        <div className="flex flex-col gap-4">
+          {messages.length > 0 && (
+            <div className="flex items-center justify-between">
+              <h1 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+                    <span>DeepSeek 正在思考中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-5 h-5 text-green-500" />
+                    <span>思考完成</span>
+                  </>
+                )}
+              </h1>
+              <div className="relative">
+                <button
+                  onClick={() => setIsOpen(!isOpen)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                  data-tooltip-id="menu-tooltip"
+                >
+                  <Menu className="w-5 h-5 text-gray-600" />
+                </button>
+                <Tooltip
+                  id="menu-tooltip"
+                  place="left"
+                  style={{ borderRadius: "8px" }}
+                >
+                  菜单
+                </Tooltip>
+                <OptionsMenu isOpen={isOpen} setIsOpen={setIsOpen} content={messages[messages.length - 1].content} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
         {!isDeepThingActive ? <PlaceHolder /> : renderMessages()}
+        <div ref={messagesEndRef} />
       </div>
       <div className="flex-shrink-0 p-2">
         <div className="relative">
+          <div className="flex items-center gap-2 px-2 mb-2">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs text-gray-600">思考深度</span>
+            </div>
+            <div className="w-32 flex items-center gap-2">
+              <input
+                type="range"
+                min="2"
+                max="6"
+                value={maxDepth}
+                onChange={(e) => setMaxDepth(parseInt(e.target.value))}
+                className="w-24 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+              <span className="text-xs text-gray-500 min-w-[20px]">
+                {maxDepth}
+              </span>
+            </div>
+          </div>
+
           <div
             className="relative rounded-md bg-white outline outline-1 -outline-offset-1 outline-gray-300 
             focus-within:outline focus-within:outline-2 focus-within:-outline-offset-2
-            focus-within:outline-indigo-600 mt-2"
+            focus-within:outline-indigo-600"
           >
             <textarea
               value={query}

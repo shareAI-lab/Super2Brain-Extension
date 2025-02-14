@@ -311,3 +311,73 @@ export async function getWebAnalysis(url) {
   const analysis = await getItem(`webAnalysis-${url}`);
   return analysis || "";
 }
+
+export async function setLastUpdateCheck(timestamp) {
+  return setItem("lastUpdateCheck", timestamp);
+}
+
+export async function getLastUpdateCheck() {
+  return getItem("lastUpdateCheck");
+}
+
+export async function setLatestVersionInfo(versionInfo) {
+  return setItem("latestVersionInfo", {
+    version: versionInfo.version,
+    downloadUrl: versionInfo.downloadUrl,
+    releaseNotes: versionInfo.releaseNotes,
+    publishDate: versionInfo.publishDate,
+  });
+}
+
+export async function getLatestVersionInfo() {
+  return {
+    version: "1.0.1",
+    description: "测试版本",
+    releaseNotes: "测试版本",
+    downloadUrl: "https://www.baidu.com",
+    publishDate: "2025-02-13",
+  };
+}
+
+export async function getVersion() {
+  const manifest = chrome.runtime.getManifest();
+  const manifestVersion = manifest.version;
+
+  const storedVersion = await getItem("currentVersion");
+  if (!storedVersion) {
+    await setItem("currentVersion", manifestVersion);
+    return manifestVersion;
+  }
+
+  return storedVersion;
+}
+
+export async function setVersion(version) {
+  return setItem("currentVersion", version);
+}
+
+const compareVersions = (v1, v2) => {
+  const normalize = (v) => v.split(".").map(Number);
+  const [arr1, arr2] = [normalize(v1), normalize(v2)];
+
+  for (let i = 0; i < Math.max(arr1.length, arr2.length); i++) {
+    const num1 = arr1[i] || 0;
+    const num2 = arr2[i] || 0;
+    if (num1 !== num2) return num1 - num2;
+  }
+  return 0;
+};
+
+export async function checkNeedsUpdate(v2) {
+  const [currentVersion, lastCheck] = await Promise.all([
+    getVersion(),
+    getLastUpdateCheck(),
+  ]);
+
+  if (!v2 || !v2.version) return false;
+
+  const now = Date.now();
+  await setLastUpdateCheck(now);
+
+  return compareVersions(v2.version, currentVersion) > 0;
+}

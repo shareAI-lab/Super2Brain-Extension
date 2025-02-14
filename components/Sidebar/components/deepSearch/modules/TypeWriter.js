@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
-const TypeWriter = ({ text, onComplete }) => {
-  const [displayText, setDisplayText] = useState('');
+const TypeWriter = ({ text, onComplete, isPulsing = false }) => {
+  const [displayText, setDisplayText] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     if (currentIndex < text.length) {
       const timer = setTimeout(() => {
-        setDisplayText(prev => prev + text[currentIndex]);
-        setCurrentIndex(prev => prev + 1);
-      }, 25); // 打字速度，可以调整
+        setDisplayText((prev) => prev + text[currentIndex]);
+        setCurrentIndex((prev) => prev + 1);
+      }, 25);
 
       return () => clearTimeout(timer);
     } else if (onComplete) {
@@ -17,7 +17,11 @@ const TypeWriter = ({ text, onComplete }) => {
     }
   }, [currentIndex, text]);
 
-  return <span className="whitespace-pre-wrap break-all">{displayText}</span>;
+  return (
+    <span className={`whitespace-pre-wrap break-all ${isPulsing ? 'animate-pulse' : ''}`}>
+      {displayText}
+    </span>
+  );
 };
 
-export { TypeWriter }; 
+export { TypeWriter };

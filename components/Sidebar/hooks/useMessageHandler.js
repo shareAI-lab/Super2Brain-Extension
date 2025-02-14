@@ -335,13 +335,14 @@ export const useMessageHandler = (thinkingAgent, model, userInput) => {
               setMessage((prev) =>
                 updateLastAssistantMessage(prev, {
                   status: "error",
-                  statusMessage: "内容分析出错，请重试",
+                  statusMessage: "服务器繁忙，请切换其他模型或者检查网络",
                 })
               );
             }
           }
         },
-        message
+        message,
+        model.toLowerCase()
       );
     } catch (error) {
       console.error("处理响应时出错:", error);

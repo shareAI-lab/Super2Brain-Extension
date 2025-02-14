@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { ChatMessageList } from "./modules/ChatMessageList";
 import { TextareaRef } from "./modules/textarea";
 
@@ -24,6 +24,22 @@ const ActivateTabChatPanel = ({
   currentUrlRelatedQuestions,
   currentUrlLoading,
 }) => {
+  const handleQuestionClick = useCallback((question) => {
+    if (!question) return;
+    
+    const message = [{
+      role: "user",
+      content: question,
+      isFromSuggestion: true
+    }];
+    
+    onSubmit(message, false);
+  }, [onSubmit]);
+
+  const handleSubmit = useCallback((messages, isRetry = false) => {
+    onSubmit(messages, isRetry);
+  }, [onSubmit]);
+
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-8px)] overflow-hidden bg-white rounded-xl">
       <div className="flex-1 overflow-y-auto">
@@ -36,6 +52,7 @@ const ActivateTabChatPanel = ({
           copiedMessageId={copiedMessageId}
           onCopy={onCopy}
           onRetry={onRetry}
+          onQuestionClick={handleQuestionClick}
         />
       </div>
       <div className="p-4 bg-white w-full">
@@ -48,7 +65,7 @@ const ActivateTabChatPanel = ({
           selectedModelIsSupportsImage={selectedModelIsSupportsImage}
           setSelectedModelProvider={setSelectedModelProvider}
           setSelectedModelIsSupportsImage={setSelectedModelIsSupportsImage}
-          onSubmit={onSubmit}
+          onSubmit={handleSubmit}
           onReset={clearCurrentUrlMessages}
           currentUrl={currentUrl}
           selectedModel={selectedModel}

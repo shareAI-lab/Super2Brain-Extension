@@ -5,7 +5,7 @@ import {
   getUserInput,
 } from "../../public/storage";
 
-const GetTaskStatus = `http://localhost:8000/common/tasks/{task_id}`;
+const GetTaskStatus = `https://s2bapi.zima.pet/common/tasks/{task_id}`;
 
 export default function Status() {
   const [hasError, setHasError] = useState(false);

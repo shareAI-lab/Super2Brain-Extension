@@ -1,3 +1,3 @@
 export const config = {
-  baseUrl: "http://localhost:8000",
+  baseUrl: "https://s2bapi.zima.pet",
 };

@@ -60,11 +60,13 @@ export const TextareaRef = ({
 
   // 4. 优化消息创建逻辑
   const createMessage = useCallback(
-    (text, imageData = null) => [{
-      role: "user",
-      content: text,
-      imageData: imageData
-    }],
+    (text, imageData = null) => [
+      {
+        role: "user",
+        content: text,
+        imageData: imageData,
+      },
+    ],
     []
   );
 
@@ -74,10 +76,10 @@ export const TextareaRef = ({
     const trimmedValue = inputValue.trim();
     if (!trimmedValue) return;
 
-    onSubmit(createMessage(trimmedValue, screenshotData));
+    onSubmit(createMessage(trimmedValue, screenshotData), false);
     setInputValue("");
     setScreenshotData(null);
-  }, [inputValue, screenshotData, onSubmit, createMessage]);
+  }, [inputValue, screenshotData, onSubmit, createMessage, isContentReady]);
 
   const handleTagClick = useCallback(
     async (prompt, type) => {

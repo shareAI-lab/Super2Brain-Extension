@@ -29,6 +29,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { pipe } from "lodash/fp";
 import { useRelatedQuestions } from "./hooks/useRelatedQuestions";
 import { pageVariants, pageTransition } from "./contants/pageTransltions";
+import { useSeetingHandler } from "./hooks/useSeetingHandler";
+import { useCheckUpdate } from "./hooks/useCheckUpdate";
+import { UpdateNotification } from "./components/updateModel";
+import { UnenoughBalance } from "./components/common/unenoughBalance";
+import { useCheckBalance } from "./hooks/useCheckBalance";
+import { useTimeGussing } from "./hooks/useTimeGussing";
 
 export default function Sidebar() {
   const [activatePage, setActivatePage] = useState(0);
@@ -50,10 +56,15 @@ export default function Sidebar() {
   const [webPreview, setWebPreview] = useState(false);
   const [currentUrlTab, setCurrentUrlTab] = useState("welcome");
   const [urlTabCache, setUrlTabCache] = useState(new Map());
-
-  const deepSearchState = useDeepSearch(userInput);
+  const [maxDepth, setMaxDepth] = useState(3);
+  const { needTime, getNeedTime } = useTimeGussing();
+  const deepSearchState = useDeepSearch(userInput, maxDepth, getNeedTime);
   const [isDeepThingActive, setIsDeepThingActive] = useState(false);
+  const updateInfo = useCheckUpdate();
+  const { settings, setSettings } = useSeetingHandler();
 
+
+  const { checkBalance, isShowModal, setIsShowModal } = useCheckBalance();
   const {
     fetchRelatedQuestions,
     currentUrlRelatedQuestions,
@@ -61,15 +72,35 @@ export default function Sidebar() {
   } = useRelatedQuestions({
     content: pageContent,
     currentUrl,
+    activatePage,
   });
 
   useEffect(() => {
     fetchRelatedQuestions();
-  }, [pageContent, currentUrl]);
+  }, [pageContent, currentUrl, activatePage]);
 
   useEffect(() => {
     const fetchUserInput = async () => {
       const input = await getUserInput();
+      setUserInput(input);
+    };
+
+    fetchUserInput();
+  }, []);
+
+  useEffect(() => {
+    const fetchWebPreview = async () => {
+      const webPreview = await getWebPreview();
+      setWebPreview(webPreview);
+    };
+
+    fetchWebPreview();
+  }, []);
+
+  useEffect(() => {
+    const fetchUserInput = async () => {
+      const input = await getUserInput();
+
       setUserInput(input);
     };
 
@@ -101,25 +132,6 @@ export default function Sidebar() {
       );
     }
   }, [currentUrl, currentUrlTab]);
-
-  useEffect(() => {
-    const fetchWebPreview = async () => {
-      const webPreview = await getWebPreview();
-      setWebPreview(webPreview);
-    };
-
-    fetchWebPreview();
-  }, []);
-
-  useEffect(() => {
-    const fetchUserInput = async () => {
-      const input = await getUserInput();
-
-      setUserInput(input);
-    };
-
-    fetchUserInput();
-  }, []);
 
   useEffect(() => {
     if (!webPreview) {
@@ -203,6 +215,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     if (
+      !pageContent ||
       !webPreview ||
       !userInput?.trim() ||
       !currentUrl ||
@@ -259,38 +272,17 @@ export default function Sidebar() {
         fetchAnalysis(currentUrl, pageContent);
       }
     }
-  }, [currentUrl, currentUrlTab, webPreview, userInput, pageContent]);
-
-  const [settings, setSettings] = useState({
-    super2brain: {
-      baseUrl: config.baseUrl || "",
-      apiKey: userInput || "",
-    },
-    deepseek: {
-      baseUrl: "https://api.deepseek.com",
-      apiKey: "",
-    },
-    openai: {
-      baseUrl: "https://api.openai.com",
-      apiKey: "",
-    },
-    claude: {
-      baseUrl: "https://api.anthropic.com",
-      apiKey: "",
-    },
-    ollama: {
-      baseUrl: "http://localhost:11434",
-      apiKey: "",
-    },
-    lmstudio: {
-      baseUrl: "http://localhost:1234",
-      apiKey: "",
-    },
-    custom: {
-      baseUrl: "",
-      apiKey: "",
-    },
-  });
+  }, [
+    currentUrl,
+    pageContent,
+    userInput,
+    webPreview,
+    setWebPreview,
+    pageLoading,
+    summaryCache,
+    loadingUrls,
+    currentUrlTab,
+  ]);
 
   const [selectedModel, setSelectedModel] = useState("Deepseek-R1");
   const [selectedModelProvider, setSelectedModelProvider] =
@@ -298,57 +290,6 @@ export default function Sidebar() {
   const [selectedModelIsSupportsImage, setSelectedModelIsSupportsImage] =
     useState(true);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
-
-  const fetchDeepSeekConfig = async () => {
-    try {
-      const configs = await Promise.all([
-        getDeepSeekApiKey(),
-        getOpenaiApiKey(),
-        getClaudeApiKey(),
-      ]);
-      const currentUserInput = await getUserInput();
-      const lmstudioConfig = await getLmstudioConfig();
-      const ollamaConfig = await getOllamaConfig();
-      const customConfig = await getCustomConfig();
-
-      setSettings((prev) => ({
-        super2brain: {
-          baseUrl: `${config.baseUrl}/v1` || "",
-          apiKey: currentUserInput || "",
-        },
-        deepseek: {
-          baseUrl: "https://api.deepseek.com" || "",
-          apiKey: configs[0] || "",
-        },
-        openai: {
-          baseUrl: "https://api.openai.com" || "",
-          apiKey: configs[1] || "",
-        },
-        claude: {
-          baseUrl: "https://api.anthropic.com" || "",
-          apiKey: configs[2] || "",
-        },
-        ollama: {
-          baseUrl: ollamaConfig.url || "",
-          apiKey: ollamaConfig.apiKey || "",
-        },
-        lmstudio: {
-          baseUrl: lmstudioConfig.url || "",
-          apiKey: lmstudioConfig.apiKey || "",
-        },
-        custom: {
-          baseUrl: customConfig.url || "",
-          apiKey: customConfig.apiKey || "",
-        },
-      }));
-    } catch (error) {
-      console.error("获取 DeepSeek 配置失败:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchDeepSeekConfig();
-  }, []);
 
   const addMessage = useCallback((url, role, content, model = "") => {
     setMessages((prevMessages) => {
@@ -536,7 +477,7 @@ export default function Sidebar() {
   }, [currentUrl]);
 
   const handleSubmit = React.useCallback(
-    async (messages) => {
+    async (messages, isRetry = false) => {
       try {
         const processedMessages = messages.map((message) => ({
           role: MessageRole.USER,
@@ -547,9 +488,11 @@ export default function Sidebar() {
           ),
         }));
 
-        processedMessages.forEach((message) => {
-          addMessage(currentUrl, message.role, message.content);
-        });
+        if (!isRetry) {
+          processedMessages.forEach((message) => {
+            addMessage(currentUrl, message.role, message.content);
+          });
+        }
 
         setIsAiThinking(true);
         thinkingStateRef.current.set(currentUrl, true);
@@ -561,7 +504,7 @@ export default function Sidebar() {
             content: pageSystemMessage,
           },
           ...getCurrentUrlMessages(),
-          ...processedMessages,
+          ...(isRetry ? [] : processedMessages),
         ];
         console.log("currentMessages", settings[selectedModelProvider].apiKey);
         const response = await callAI({
@@ -634,27 +577,22 @@ export default function Sidebar() {
       if (isAiThinking) return;
 
       const messages = getCurrentUrlMessages();
-
-      const getUserMessage = (messages, messageId) =>
+      const userMessage =
         messages[messageId - 1]?.role === "user"
           ? messages[messageId - 1]
           : null;
 
-      const userMessage = getUserMessage(messages, messageId);
       if (!userMessage) return;
-
-      const filterMessagesUpToIndex = (messages, targetIndex) =>
-        messages.filter((_, index) => index <= targetIndex - 1);
 
       setMessages((prevMessages) => {
         const urlMessages = prevMessages.get(currentUrl) || [];
         return new Map(prevMessages).set(
           currentUrl,
-          filterMessagesUpToIndex(urlMessages, messageId)
+          urlMessages.filter((_, index) => index <= messageId - 1)
         );
       });
 
-      await handleSubmit([{ content: userMessage.content }]);
+      await handleSubmit([{ content: userMessage.content }], true);
     },
     [currentUrl, getCurrentUrlMessages, handleSubmit, isAiThinking]
   );
@@ -744,6 +682,7 @@ export default function Sidebar() {
               transition={pageTransition}
             >
               <NetworkSearch
+                checkBalance={checkBalance}
                 userInput={userInput}
                 setActivatePage={setActivatePage}
                 selectedModelProvider={selectedModelProvider}
@@ -765,6 +704,8 @@ export default function Sidebar() {
               transition={pageTransition}
             >
               <DeepSearch
+                maxDepth={maxDepth}
+                setMaxDepth={setMaxDepth}
                 query={deepSearchState.query}
                 setQuery={deepSearchState.setQuery}
                 messages={deepSearchState.messages}
@@ -773,6 +714,7 @@ export default function Sidebar() {
                 onSendMessage={deepSearchState.handleSendMessage}
                 isDeepThingActive={isDeepThingActive}
                 setIsDeepThingActive={setIsDeepThingActive}
+                needTime={needTime}
               />
             </motion.div>
           ) : activatePage === 5 ? (
@@ -816,6 +758,14 @@ export default function Sidebar() {
           setActivatePage={setActivatePage}
         />
       </div>
+      <UpdateNotification
+        isVisible={updateInfo.isUpdate}
+        updateInfo={updateInfo}
+      />
+      <UnenoughBalance
+        isShowModal={isShowModal}
+        setIsShowModal={setIsShowModal}
+      />
     </div>
   );
 }

@@ -64,12 +64,12 @@ const buildCriticalPrompt = () => ({
       - 缺陷描述
 
 
-注意：
-- 不要有改进建议
-- 分析应客观公正，基于事实依据
-- 批评建议应具有建设性，避免空泛评价
-- 使用专业术语，保持语言简洁清晰
-- 适当使用 emoji 提升可读性，但不影响专业性`,
+    注意：
+    - 不要有改进建议
+    - 分析应客观公正，基于事实依据
+    - 批评建议应具有建设性，避免空泛评价
+    - 使用专业术语，保持语言简洁清晰
+    - 适当使用 emoji 提升可读性，但不影响专业性`,
 });
 
 const processApiResponse = (response) =>
@@ -116,7 +116,7 @@ export const fetchUrlContent = async (
 export const fetchCriticalAnalysis = async (
   content,
   userInput,
-  model = "gpt-4o"
+  model = "deepseek-r1"
 ) => {
   try {
     const response = await fetch(`${config.baseUrl}/text/v1/chat/completions`, {

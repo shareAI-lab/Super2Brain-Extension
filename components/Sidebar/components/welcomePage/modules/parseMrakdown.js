@@ -76,16 +76,16 @@ const MarkdownRenderer = ({
   return (
     <div className="w-full max-w-3xl mx-auto bg-white rounded-xl">
       <div className="flex-shrink-0 pt-4">
-        <div className="flex justify-center gap-1 p-1 bg-gray-100 rounded-xl w-fit mx-auto">
+        <div className="flex justify-center gap-2 p-2 bg-white/80 backdrop-blur-sm rounded-3xl w-fit mx-auto shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 border border-gray-100/50">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setCurrentUrlTab(tab.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+              className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all duration-300
                 ${
                   currentUrlTab === tab.id
-                    ? "bg-blue-50 text-indigo-600"
-                    : "text-gray-600 hover:text-gray-900"
+                    ? "bg-indigo-50/90 text-indigo-600 shadow-[0_2px_12px_rgb(99,102,241,0.12)]"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50/80"
                 }`}
             >
               {tab.name}

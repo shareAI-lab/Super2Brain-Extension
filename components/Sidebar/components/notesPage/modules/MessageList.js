@@ -105,7 +105,13 @@ const MessageList = ({
                       </div>
                     ) : (
                       <div className="p-3">
-                        {message.status === -1 ? (
+                        {message.status === 6 ? (
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm p-1">
+                              服务器繁忙，请切换其他模型试一试
+                            </span>
+                          </div>
+                        ) : message.status === -1 ? (
                           <ResponseLoading />
                         ) : (
                           <div className="flex items-center space-x-2">
@@ -120,20 +126,6 @@ const MessageList = ({
                   </div>
                 )}
               </div>
-
-              {/* {!message.isUser && message.related?.length > 0 && (
-                <RelatedDocs
-                  message={message}
-                  expandedDocs={expandedDocs}
-                  onToggleExpand={() => {
-                    setExpandedDocs((prev) => ({
-                      ...prev,
-                      [`${message.id}-docs`]: !prev[`${message.id}-docs`],
-                    }));
-                  }}
-                />
-              )} */}
-
               {!message.isUser && message.isComplete && (
                 <div className="flex items-center gap-2">
                   <RelatedQuestions message={message} setQuery={setQuery} />

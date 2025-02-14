@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { config } from "../../config/index";
 import { extractUrls } from "./webSearch";
 
-const callOpenai = async (messages, model = "gpt-4o", userInput) => {
+const callOpenai = async (messages, model = "gpt-4o-mini", userInput) => {
   try {
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       throw new Error("消息参数无效");
@@ -139,7 +139,7 @@ const getFinalResponse = async (query, formattedResults, userInput) => {
         content: `问题：${query}\n 每个网页的回答：${formattedResults}`,
       },
     ],
-    "gpt-4o",
+    "gpt-4o-mini",
     userInput
   );
 
@@ -163,7 +163,7 @@ const getDeepFinalResponse = async (
         content: `问题：${query}\n 当前回答：${currentResponse}\n 补充回答：${formattedResults}`,
       },
     ],
-    "gpt-4o",
+    "gpt-4o-mini",
     userInput
   );
 
@@ -314,6 +314,61 @@ const createContext = (
   return context;
 };
 
+const isGreeting = async (text, userInput) => {
+  try {
+    const response = await callOpenai(
+      [
+        {
+          role: "system",
+          content: `你是一个判断助手。判断用户输入是否为问候语（如：你好、在吗、打扰一下等，或者是一些闲聊，比如哈哈，等无思考意义的问题）。
+          - 如果是问候语，返回 "true"
+          - 如果不是问候语，返回 "false"
+          - 严格返回布尔值字符串，不要返回其他内容`,
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ],
+      "gpt-4o-mini",
+      userInput
+    );
+
+    return response.choices[0].message.content.trim().toLowerCase() === "true";
+  } catch (error) {
+    console.error("判断问候语失败:", error);
+    return false;
+  }
+};
+
+const getGreetingResponse = async (text, userInput) => {
+  try {
+    const response = await callOpenai(
+      [
+        {
+          role: "system",
+          content: `你是一个友好的AI助手。请根据用户的问候生成一个自然、友好的回应。
+          回应要求：
+          1. 保持简短自然
+          2. 表达愿意帮助的态度
+          3. 语气要亲切`,
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ],
+      "gpt-4o-mini",
+      userInput
+    );
+
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error("生成问候回复失败:", error);
+    return "你好！我是你的AI助手，很高兴为你服务。";
+  }
+};
+
 // 修改主要响应函数
 const getResponse = async (
   query,
@@ -323,6 +378,10 @@ const getResponse = async (
   onStatusUpdate
 ) => {
   try {
+    if (await isGreeting(query, userInput)) {
+      return await getGreetingResponse(query, userInput);
+    }
+
     const context = createContext(
       query,
       userInput,

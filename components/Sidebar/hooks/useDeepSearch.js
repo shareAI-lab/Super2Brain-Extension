@@ -1,12 +1,13 @@
 import { useState } from "react";
 
-export const useDeepSearch = (userInput) => {
+export const useDeepSearch = (userInput, maxDepth = 3, getNeedTime) => {
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState("");
 
   const handleSendMessage = async (question, getResponse) => {
+    if (currentStatus.length > 0) setCurrentStatus("");
     if (!question.trim() || isLoading) return;
     setIsLoading(true);
     const userMessage = { role: "user", content: question, isComplete: true };
@@ -20,7 +21,8 @@ export const useDeepSearch = (userInput) => {
       };
 
       setMessages([userMessage, aiMessage]);
-      const response = await getResponse(question, 0, 3, userInput, (status) => {
+      const needTime = getNeedTime(maxDepth);
+      const response = await getResponse(question, 0, maxDepth, userInput, (status) => {
         setCurrentStatus(status);
         setMessages((prev) => {
           const newMessages = [...prev];
@@ -44,7 +46,6 @@ export const useDeepSearch = (userInput) => {
       console.error("发送消息失败:", error);
     } finally {
       setIsLoading(false);
-      setCurrentStatus("");
     }
   };
 

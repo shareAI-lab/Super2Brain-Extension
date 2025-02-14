@@ -9,7 +9,7 @@ const buildSystemMessage = () => {
         根据用户输入的文章，生成三个相关问题，生成三个问题, 要求：
         1. 问题要对原问题进行深入探讨
         2. 寻求更多相关细节
-        3. 问题要尽量的简短有意义
+        3. 问题要尽量的简短有意义，不超过15个字体
 
         请直接返回3个问题，每个问题占一行。`,
   };
@@ -40,7 +40,11 @@ const fetchRelatedQuestions = async (content) => {
     .filter((q) => q.length > 0);
 };
 
-export const useRelatedQuestions = ({ content = "", currentUrl }) => {
+export const useRelatedQuestions = ({
+  content = "",
+  currentUrl,
+  activatePage,
+}) => {
   const [relatedQuestions, setRelatedQuestions] = useState(new Map());
   const [currentUrlLoading, setCurrentUrlLoading] = useState(false);
   const [currentUrlRelatedQuestions, setCurrentUrlRelatedQuestions] = useState(
@@ -49,6 +53,11 @@ export const useRelatedQuestions = ({ content = "", currentUrl }) => {
 
   const fetchQuestions = useCallback(async () => {
     setCurrentUrlLoading(true);
+
+    if (activatePage !== 1) {
+      setCurrentUrlLoading(false);
+      return;
+    }
 
     if (!content?.trim()) {
       setCurrentUrlLoading(false);
@@ -77,7 +86,7 @@ export const useRelatedQuestions = ({ content = "", currentUrl }) => {
     } finally {
       setCurrentUrlLoading(false);
     }
-  }, [content, currentUrl, relatedQuestions]);
+  }, [content, currentUrl, relatedQuestions, activatePage]);
 
   return {
     relatedQuestions,

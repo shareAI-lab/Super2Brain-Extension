@@ -233,30 +233,22 @@ const ModelGroup = ({
           </span>
         </div>
       ) : (
-        // 使用过滤后的模型列表进行渲染
         enabledModels.map((model) => (
           <div
             key={model.id}
             className={`px-4 py-2 text-sm transition-all duration-200
                       hover:bg-indigo-50 flex items-center justify-between group
-                      ${
-                        !useInput
-                          ? "cursor-not-allowed opacity-50"
-                          : "cursor-pointer"
-                      }
-                      ${
-                        selectedModel === model.id &&
-                        selectedModelProvider === model.provider
+                      ${!useInput ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
+                      ${selectedModel === model.id && selectedModelProvider === model.provider
                           ? "text-indigo-600 bg-indigo-50"
                           : "text-gray-600"
                       }`}
             onClick={() => onModelSelect(model)}
           >
-            <span className="group-hover:text-indigo-600">{model.id}</span>
-            {selectedModel === model.id &&
-              selectedModelProvider === model.provider && (
-                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-              )}
+            <span className="group-hover:text-indigo-600 pl-4">{model.id}</span>
+            {selectedModel === model.id && selectedModelProvider === model.provider && (
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+            )}
           </div>
         ))
       )}

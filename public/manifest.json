@@ -6,6 +6,7 @@
 	"description": "Super2Brain",
 	"author": "LiM",
 	"homepage_url": "https://x.super2brain.com",
+	"update_url": "https://extension-update.oss-cn-beijing.aliyuncs.com/update.xml",
 	"icons": {
 		"16": "/icons/logo.png",
 		"32": "/icons/logo.png",

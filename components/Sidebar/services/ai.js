@@ -154,9 +154,9 @@ const modelAdapters = {
 
 const MODEL_MAPPING = {
   "deepseek-v3": "deepseek-chat",
-  "deepseek-r1": "deepseek-reasoner",
+  "deepseek-r1": "deepseek-r1",
   "Deepseek-V3": "deepseek-chat",
-  "Deepseek-R1": "deepseek-reasoner",
+  "Deepseek-R1": "deepseek-r1",
 };
 
 const removeTrailingV1 = (url) =>

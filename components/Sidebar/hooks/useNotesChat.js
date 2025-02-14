@@ -34,7 +34,6 @@ export const useNotesChat = (userInput = "", selectedModel) => {
 
     setMessages((prev) => [...prev, userMessage, aiMessage]);
     setLoading(true);
-
     try {
       await getResponse(
         query,
@@ -43,7 +42,7 @@ export const useNotesChat = (userInput = "", selectedModel) => {
           content: msg.content,
         })),
         userInput,
-        selectedModel,
+        selectedModel.toLowerCase(),
         (progress) => {
           if (progress.stage === 2) {
             setMessages((prev) =>
@@ -99,6 +98,18 @@ export const useNotesChat = (userInput = "", selectedModel) => {
                   : msg
               )
             );
+          } else if (progress.stage === 6) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessage.id
+                  ? {
+                      ...msg,
+                      statusMsg: progress.response,
+                      status: 6,
+                    }
+                  : msg
+              )
+            );
           }
         }
       );
@@ -119,7 +130,7 @@ export const useNotesChat = (userInput = "", selectedModel) => {
     }
   };
 
-  const handleRegenerate = async (messageId) => {
+  const handleRegenerate = async (messageId, userInput, selectedModel) => {
     const currentIndex = messages.findIndex((msg) => msg.id === messageId);
     if (currentIndex < 1) return;
 
@@ -146,6 +157,8 @@ export const useNotesChat = (userInput = "", selectedModel) => {
           role: msg.isUser ? "user" : "assistant",
           content: msg.content,
         })),
+        userInput,
+        selectedModel.toLowerCase(),
         (progress) => {
           if (progress.stage === 2 && progress.results) {
             setMessages((prev) =>

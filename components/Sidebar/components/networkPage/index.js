@@ -17,18 +17,18 @@ const NetworkSearch = ({
   selectedModelIsSupportsImage,
   setSelectedModelProvider,
   setSelectedModelIsSupportsImage,
+  checkBalance,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedModel, setSelectedModel] = useState("Deepseek-R1");
   const [chatMode, setChatMode] = useState("network");
-
   const thinkingAgent = useMemo(
     () =>
       createThingAgent({
         apiKey: userInput,
         baseURL: `${config.baseUrl}/text/v1`,
-        model: selectedModel,
+        model: selectedModel.toLowerCase(),
       }),
     [selectedModel, userInput]
   );
@@ -71,6 +71,12 @@ const NetworkSearch = ({
   const handleMessageSubmit = async () => {
     if (!query.trim() || (chatMode === "network" ? isLoading : notesLoading))
       return;
+
+    const isEnough = await checkBalance(7, selectedModel, 3);
+
+    if (!isEnough) {
+      return;
+    }
     const message = query;
     setQuery("");
     try {
@@ -98,25 +104,25 @@ const NetworkSearch = ({
   return (
     <div className="w-full h-[calc(100vh-8px)] rounded-xl flex flex-col bg-white">
       <div className="flex-shrink-0 py-4">
-        <div className="flex justify-center gap-1 p-1 bg-gray-100 rounded-xl w-fit mx-auto">
+        <div className="flex justify-center gap-2 p-2 bg-white/80 backdrop-blur-sm rounded-3xl w-fit mx-auto shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 border border-gray-100/50">
           <button
             onClick={() => setChatMode("network")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+            className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all duration-300
               ${
                 chatMode === "network"
-                  ? "bg-blue-50 text-indigo-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-indigo-50/90 text-indigo-600 shadow-[0_2px_12px_rgb(99,102,241,0.12)]"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50/80"
               }`}
           >
             Web对话
           </button>
           <button
             onClick={() => setChatMode("notes")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+            className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all duration-300
               ${
                 chatMode === "notes"
-                  ? "bg-blue-50 text-indigo-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-indigo-50/90 text-indigo-600 shadow-[0_2px_12px_rgb(99,102,241,0.12)]"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50/80"
               }`}
           >
             知识库对话

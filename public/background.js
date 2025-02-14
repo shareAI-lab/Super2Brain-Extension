@@ -14,22 +14,33 @@ import {
   incrementSuccessCount,
   incrementFailedCount,
   resetCounts,
+  setLastUpdateCheck,
+  getLastUpdateCheck,
+  setVersion,
 } from "./storage.js";
-;
 // 存储每个标签页的状态
 const tabStates = new Map();
 
-chrome.runtime.onInstalled.addListener(function (details) {
+chrome.runtime.onInstalled.addListener(async function (details) {
   if (details.reason === "install") {
     chrome.tabs.create({
       url: chrome.runtime.getURL("welcome.html"),
       active: true,
     });
+    const manifest = chrome.runtime.getManifest();
+    await setLastUpdateCheck(new Date().getTime());
+    if (details.reason === "install") {
+      await setVersion(manifest.version);
+    } else if (details.reason === "update") {
+      await setVersion(manifest.version);
+    }
   }
+  chrome.tabs.executeScript({
+    file: 'inject.js',
+  });
 });
 
 async function initializeStorage() {
-  // 初始化计数器
   await setItem("successCount", 0);
   await setItem("failedCount", 0);
   await setItem("progress", 0);
@@ -39,11 +50,6 @@ async function initializeStorage() {
 chrome.runtime.onInstalled.addListener(async () => {
   await initializeStorage();
 });
-
-// // 监听浏览器启动事件
-// chrome.runtime.onStartup.addListener(async () => {
-// 	await initializeStorage()
-// })
 
 async function processChunks(chunks, token) {
   const totalChunkNumber = chunks.length;
@@ -181,7 +187,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const { url, markdown, title } = message.data;
 
         await keepAlive(true);
-        const endpoint = `http://localhost:8000/common/tasks/content-note`;
+        const endpoint = `https://s2bapi.zima.pet/common/tasks/content-note`;
 
         const response = await fetch(endpoint, {
           method: "POST",
@@ -408,12 +414,62 @@ async function extractMultiplePages(urls) {
   }
 }
 
-// 监听来自 sidepanel 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "extractMultipleContents") {
     extractMultiplePages(message.urls)
       .then((contents) => sendResponse({ success: true, contents }))
       .catch((error) => sendResponse({ success: false, error: error.message }));
     return true;
+  }
+});
+
+function compareVersions(v1, v2) {
+  const v1Parts = v1.split(".").map(Number);
+  const v2Parts = v2.split(".").map(Number);
+
+  for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
+    const v1Part = v1Parts[i] || 0;
+    const v2Part = v2Parts[i] || 0;
+    if (v1Part > v2Part) return 1;
+    if (v1Part < v2Part) return -1;
+  }
+  return 0;
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "checkUpdate") {
+    (async () => {
+      try {
+        const currentVersion = chrome.runtime.getManifest().version;
+        const response = await fetch(
+          "https://extension-update.oss-cn-beijing.aliyuncs.com/version.json"
+        );
+
+        if (!response.ok) {
+          throw new Error("获取版本信息失败");
+        }
+
+        const data = await response.json();
+        const hasUpdate = compareVersions(data.version, currentVersion) > 0;
+
+        sendResponse({
+          updateAvailable: hasUpdate,
+          version: data.version,
+          currentVersion,
+          releaseNotes: data.releaseNotes,
+          fixNotes: data.fixNotes,
+          choremUpdateUrl: data.choremUpdateUrl,
+          edgeUpdateUrl: data.edgeUpdateUrl,
+          updateDocs: data.updateDocs,
+        });
+      } catch (error) {
+        console.error("检查更新失败:", error);
+        sendResponse({
+          updateAvailable: false,
+          error: error.message,
+        });
+      }
+    })();
+    return true; // 保持消息通道开放以支持异步响应
   }
 });

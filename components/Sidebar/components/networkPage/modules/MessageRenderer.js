@@ -10,7 +10,7 @@ export const MessageRenderer = ({ messages, setQuery }) => {
       <PlaceHolder
         Icon={Search}
         title="AI 联网助手"
-        description="通过您的浏览器为您提供更全面、准确的回答"
+        description="操作你的浏览器，获取更多信息，并进行分析"
       />
     );
   }

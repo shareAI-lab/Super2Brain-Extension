@@ -7,7 +7,7 @@ import {
   checkLMStudioConnection,
 } from "../utils/check";
 import { useState } from "react";
-import {  X, CheckCircle, Loader2 } from "lucide-react";
+import { X, CheckCircle, Loader2 } from "lucide-react";
 import {
   setDeepSeekApiKey,
   setClaudeApiKey,

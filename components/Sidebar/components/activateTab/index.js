@@ -24,16 +24,21 @@ const ActivateTabChatPanel = ({
   currentUrlRelatedQuestions,
   currentUrlLoading,
 }) => {
-  const handleQuestionClick = useCallback((question) => {
+  const handleQuestionClick = useCallback((question, reason_content) => {
     if (!question) return;
     
-    const message = [{
+    
+    const message = {
       role: "user",
       content: question,
       isFromSuggestion: true
-    }];
+    };
     
-    onSubmit(message, false);
+    if (reason_content) {
+      message.reason_content = reason_content;
+    }
+    
+    onSubmit([message], false);
   }, [onSubmit]);
 
   const handleSubmit = useCallback((messages, isRetry = false) => {

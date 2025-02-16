@@ -1,4 +1,4 @@
-import { Check, Loader2, Globe } from "lucide-react";
+import { Sparkle, ScanEye } from "lucide-react";
 import { MarkdownRenderer } from "./modules/parseMrakdown";
 import { CouldNotGetWebContent } from "./modules/couldNotGetWebContent";
 import { NoLogin } from "./modules/noLogin";
@@ -27,37 +27,33 @@ const WelcomePage = ({
   return (
     <>
       {pageLoading || !pageContent ? (
-        <div className="w-full h-full rounded-xl flex items-center justify-center bg-white">
+        <div className="w-full h-full rounded-l-xl flex items-center justify-center bg-white">
           <div className="p-8">
             <div className="flex flex-col items-center justify-center gap-6">
               <div className="w-20 h-20 bg-blue-50 rounded-xl flex items-center justify-center">
-                <Globe className="w-10 h-10 text-blue-500" />
+                <ScanEye className="w-10 h-10 text-blue-500" />
               </div>
             </div>
 
-            <div className="mt-12 space-y-6">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-5 h-5 rounded-full ${
-                    pageContent ? "bg-green-500" : "border-2 border-gray-300"
-                  } flex items-center justify-center`}
-                >
-                  {pageContent ? (
-                    <Check className="w-3 h-3 text-white" />
-                  ) : (
-                    <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+            <div className="mt-6 space-y-6">
+              <div className="flex flex-col items-center gap-4">
+                <div className="rounded-full flex items-center justify-center">
+                  {!pageContent && (
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-gray-500">
+                        因为浏览器限制原因或者网页加载原因无法获取当前页面内容
+                      </span>
+                    </div>
                   )}
                 </div>
-                <div>
-                  <div className="font-medium">页面内容已加载</div>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center gap-2">
-                <Loading />
-                <div>
-                  <div className="font-medium">S2B正在全力分析</div>
-                </div>
+                {pageContent && (
+                  <>
+                    <div>
+                      <div className="font-medium">S2B R1正在思考分析...</div>
+                    </div>
+                    <Loading />
+                  </>
+                )}
               </div>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { config } from "../../../../config/index";
+import { createStreamCompletion } from "./streamUtils";
 
 export const createWebContent = (url, content, query) => ({
   url,
@@ -13,7 +14,6 @@ export const createThingAgent = ({
   model = "gpt-4o-mini",
   baseURL = `${config.baseUrl}/text/v1`,
 }) => {
-  
   if (model === "Deepseek-R1") {
     model = "asoner";
   } else if (model === "Deepseek-V3") {
@@ -36,25 +36,23 @@ export const createThingAgent = ({
         请保持答案的连贯性和完整性。`;
 
   const analyzeQuery = async (query) => {
-    const response = await openai.chat.completions.create({
+    return createStreamCompletion(openai, {
       model,
       messages: [
         { role: "system", content: analyzeQueryPrompt },
         { role: "user", content: query },
       ],
-      temperature: 0.7,
     });
-    return response.choices[0].message.content;
   };
 
   const processDocuments = async (
     query,
     documents,
     messageHistory,
-    onStatusUpdate
+    onStatusUpdate,
+    onStreamUpdate
   ) => {
     const focusPoints = await analyzeQuery(query);
-
     const contextMessages = messageHistory.map(({ role, content }) => ({
       role,
       content,
@@ -65,7 +63,7 @@ export const createThingAgent = ({
       documents.map(async (doc) => {
         onStatusUpdate?.(doc.url, 1);
 
-        const response = await openai.chat.completions.create({
+        const response = await createStreamCompletion(openai, {
           model,
           messages: [
             { role: "system", content: conversationPrompt },
@@ -75,19 +73,18 @@ export const createThingAgent = ({
               content: `问题: ${query}\n关注点: ${focusPoints}\n当前内容: ${doc.content}`,
             },
           ],
-          temperature: 0.7,
         });
 
         onStatusUpdate?.(doc.url, 2);
-        return response.choices[0].message.content;
+        return response;
       })
     );
 
     // 合并所有文档的响应
     const combinedContent = documentResponses.join("\n\n");
 
-    // 最终总结
-    const finalResponse = await openai.chat.completions.create({
+    // 修改最终总结部分为流式输出
+    const stream = await openai.chat.completions.create({
       model,
       messages: [
         {
@@ -99,20 +96,46 @@ export const createThingAgent = ({
           content: `问题: ${query}\n关注点: ${focusPoints}\n所有内容:\n${combinedContent}`,
         },
       ],
-      temperature: 0.7,
+      stream: true,
     });
 
-    return finalResponse.choices[0].message.content;
+    let fullContent = "";
+    let fullReasoningContent = "";
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      const reasoningContent = chunk.choices[0]?.delta?.reasoning_content || "";
+
+      fullContent += content;
+      fullReasoningContent += reasoningContent;
+
+      onStreamUpdate?.({
+        content,
+        reasoningContent,
+      });
+    }
+
+    return {
+      content: fullContent,
+      reasoning_content: fullReasoningContent,
+    };
   };
 
   return {
-    chat: async (query, documents, messageHistory = [], onStatusUpdate) => {
+    chat: async (
+      query,
+      documents,
+      messageHistory = [],
+      onStatusUpdate,
+      onStreamUpdate
+    ) => {
       try {
         return await processDocuments(
           query,
           documents,
           messageHistory,
-          onStatusUpdate
+          onStatusUpdate,
+          onStreamUpdate
         );
       } catch (error) {
         console.error("Agent error:", error);

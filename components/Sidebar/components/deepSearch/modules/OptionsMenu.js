@@ -7,10 +7,12 @@ import {
   Copy,
   FileText,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
-const OptionsMenu = ({ isOpen, setIsOpen, lastResponse }) => {
+const OptionsMenu = ({ isOpen, setIsOpen, content }) => {
   const menuRef = useRef(null);
-  const [copyStatus, setCopyStatus] = useState(""); // 用于显示复制状态
+  const [copyStatus, setCopyStatus] = useState("");
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -25,12 +27,60 @@ const OptionsMenu = ({ isOpen, setIsOpen, lastResponse }) => {
 
   const copyConversation = async () => {
     try {
-      await navigator.clipboard.writeText(lastResponse);
+      await navigator.clipboard.writeText(content);
       setCopyStatus("已复制");
       setTimeout(() => setCopyStatus(""), 2000);
     } catch (err) {
       setCopyStatus("复制失败");
       console.error("复制失败:", err);
+    }
+  };
+
+  const exportToPDF = async () => {
+    try {
+      // 创建一个临时的 div 元素
+      const element = document.createElement("div");
+      element.innerHTML = `
+        <div style="padding: 20px; font-family: Arial, sans-serif;">
+          <h2 style="color: #333; margin-bottom: 20px;">DeepSeek 对话记录</h2>
+          <div style="white-space: pre-wrap; line-height: 1.6;">
+            ${content}
+          </div>
+          <div style="margin-top: 20px; font-size: 12px; color: #666;">
+            导出时间：${new Date().toLocaleString()}
+          </div>
+        </div>
+      `;
+      document.body.appendChild(element);
+
+      // 使用 html2canvas 将内容转换为图片
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+
+      // 创建 PDF
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgWidth = 210; // A4 宽度
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(
+        canvas.toDataURL("image/jpeg", 0.98),
+        "JPEG",
+        0,
+        0,
+        imgWidth,
+        imgHeight
+      );
+
+      // 保存 PDF
+      pdf.save(`对话记录_${new Date().toISOString().slice(0, 10)}.pdf`);
+
+      // 清理临时元素
+      document.body.removeChild(element);
+    } catch (err) {
+      console.error("PDF导出失败:", err);
     }
   };
 
@@ -47,8 +97,8 @@ const OptionsMenu = ({ isOpen, setIsOpen, lastResponse }) => {
     },
     {
       icon: <FileText className="w-4 h-4" />,
-      label: "导出为PDF",
-      onClick: () => console.log("导出PDF被点击"),
+      label: "导出PDF",
+      onClick: exportToPDF,
     },
   ];
 

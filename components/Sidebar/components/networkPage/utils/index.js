@@ -10,14 +10,21 @@ const invokeOpenAI = async (messages, model = "gpt-4o-mini") => {
     dangerouslyAllowBrowser: true,
   });
 
-  const completion = await openai.chat.completions.create({
+  let fullContent = "";
+
+  const stream = await openai.chat.completions.create({
     messages,
     model: model,
     temperature: 0.7,
-    stream: false,
+    stream: true,
   });
 
-  return completion.choices[0].message.content;
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content || "";
+    fullContent += content;
+  }
+
+  return fullContent;
 };
 
 const generateSearchQuery = async (userInput, messageHistory, model) => {
@@ -58,42 +65,30 @@ const analyzeAndCreateSearchUrl = async (userInput, messageHistory, model) => {
   return createSearchUrl(searchQuery);
 };
 
-const analyzeInputType = async (userInput, messageHistory, model) => {
-  const contextMessages = messageHistory.map(({ role, content }) => ({
-    role,
-    content,
-  }));
-
-  const messages = [
-    ...contextMessages,
-    {
-      role: "user",
-      content: `基于我们的对话历史，请分析以下用户输入的类型，只返回以下选项之一，返回的选项不要包括前面的数字选项：
-      1. GREETING - 如果是问候语（如：你好、早上好等）
-      2. TRANSLATION - 如果是翻译请求
-      3. SEARCH - 如果是需要搜索的问题
-      4. CONTEXT_BASED - 如果问题和和上文有关且关联比较大
-      5. UNKNOWN - 如果无法理解或分类
-      输入内容："${userInput}"`,
-    },
-  ];
-
-  try {
-    const inputType = await invokeOpenAI(messages, model);
-    return inputType.trim();
-  } catch (error) {
-    console.error("分析输入类型时出错:", error);
-    return "UNKNOWN";
+const analyzeInputType = async (
+  userInput,
+  messageHistory,
+  model,
+  searchEnabled
+) => {
+  if (!searchEnabled) {
+    return "CONTEXT_BASED";
+  } else {
+    return "SEARCH";
   }
 };
 
-const getDirectResponse = async (userInput, messageHistory, model) => {
+const getDirectResponse = async (userInput, messageHistory, model, onStreamProgress) => {
   const contextMessages = messageHistory.slice(-3).map((msg) => ({
     role: msg.role,
     content: msg.content,
   }));
 
   const messages = [
+    {
+      role: "system",
+      content: "请提供详细的回答，并在回答的同时展示你的推理过程。使用 [推理过程] 和 [回答] 来区分内容。",
+    },
     ...contextMessages,
     {
       role: "user",
@@ -103,21 +98,72 @@ const getDirectResponse = async (userInput, messageHistory, model) => {
   ];
 
   try {
-    const response = await invokeOpenAI(messages, model);
-    return response.trim();
+    const openai = new OpenAI({
+      apiKey: await getUserInput(),
+      baseURL: `${config.baseUrl}/text/v1`,
+      dangerouslyAllowBrowser: true,
+    });
+
+    const stream = await openai.chat.completions.create({
+      messages,
+      model: model,
+      temperature: 0.7,
+      stream: true,
+    });
+
+    let fullContent = "";
+    let fullReasoningContent = "";
+    let isReasoningSection = true;
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      
+      if (content.includes("[回答]")) {
+        isReasoningSection = false;
+        continue;
+      }
+      if (content.includes("[推理过程]")) {
+        isReasoningSection = true;
+        continue;
+      }
+
+      if (isReasoningSection) {
+        fullReasoningContent += content;
+      } else {
+        fullContent += content;
+      }
+
+      // 流式输出进度回调
+      onStreamProgress?.({
+        state: 2,
+        response: fullContent.trim(),
+        reasoning_content: fullReasoningContent.trim()
+      });
+    }
+
+    return {
+      content: fullContent.trim(),
+      reasoning_content: fullReasoningContent.trim()
+    };
   } catch (error) {
     console.error("获取直接回应时出错:", error);
-    return "抱歉，我遇到了一些问题，无法正确处理您的请求。";
+    throw error;
   }
 };
 
 const getResponse = async (
   query,
+  searchEnabled,
   onProgress,
   messageHistory = [],
   model = "gpt-4o-mini"
 ) => {
-  const inputType = await analyzeInputType(query, messageHistory, "gpt-4o-mini");
+  const inputType = await analyzeInputType(
+    query,
+    messageHistory,
+    "gpt-4o-mini",
+    searchEnabled
+  );
 
   if (inputType === "SEARCH") {
     const searchUrl = await analyzeAndCreateSearchUrl(
@@ -129,12 +175,23 @@ const getResponse = async (
   } else if (
     ["GREETING", "TRANSLATION", "CONTEXT_BASED", "UNKNOWN"].includes(inputType)
   ) {
-    const directResponse = await getDirectResponse(
-      query,
-      messageHistory,
-      model.toLowerCase()
-    );
-    onProgress({ state: 2, response: directResponse });
+    try {
+      await getDirectResponse(
+        query,
+        messageHistory,
+        model.toLowerCase(),
+        (progress) => {
+          onProgress({ 
+            state: 2, 
+            response: progress.response,
+            reasoning_content: progress.reasoning_content 
+          });
+        }
+      );
+    } catch (error) {
+      console.error("获取直接回应时出错:", error);
+      throw error;
+    }
   }
 };
 

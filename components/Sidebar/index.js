@@ -1,14 +1,14 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { SettingPage } from "./components/settingPage";
 import { ActivateBar } from "./components/common/activateBar";
 import {
   getUserInput,
-  getDeepSeekApiKey,
-  getOpenaiApiKey,
-  getClaudeApiKey,
-  getOllamaConfig,
-  getCustomConfig,
-  getLmstudioConfig,
   getWebSummary,
   getWebAnalysis,
   setWebSummary,
@@ -21,7 +21,6 @@ import { fetchUrlContent, fetchCriticalAnalysis } from "./utils/chat";
 import { ActivateTabChatPanel } from "./components/activateTab";
 import { NetworkSearch } from "./components/networkPage";
 import { processContent } from "./utils/contentProcessor";
-import { config } from "../config/index.js";
 import { getWebPreview } from "../../public/storage";
 import { DeepSearch } from "./components/deepSearch";
 import { useDeepSearch } from "./hooks/useDeepSearch";
@@ -35,6 +34,11 @@ import { UpdateNotification } from "./components/updateModel";
 import { UnenoughBalance } from "./components/common/unenoughBalance";
 import { useCheckBalance } from "./hooks/useCheckBalance";
 import { useTimeGussing } from "./hooks/useTimeGussing";
+import { createThingAgent } from "./components/networkPage/utils/thingAgent.js";
+import { useMessageHandler } from "./hooks/useMessageHandler";
+import { useNotesChat } from "./hooks/useNotesChat";
+import { config } from "../config/index";
+import { useFetchPointCost } from "./hooks/useFetchPointCost";
 
 export default function Sidebar() {
   const [activatePage, setActivatePage] = useState(0);
@@ -45,26 +49,76 @@ export default function Sidebar() {
   const [pageSummary, setPageSummary] = useState("");
   const [pageLoading, setPageLoading] = useState(true);
   const [isAiThinking, setIsAiThinking] = useState(false);
-  const [messages, setMessages] = useState(new Map());
-  const contentCacheRef = useRef(new Map());
+
   const [pageSystemMessage, setPageSystemMessage] = useState("");
+
+  const [currentUrlChatLoading, setCurrentUrlChatLoading] = useState(new Map());
+  const [urlTabCache, setUrlTabCache] = useState(new Map());
+  const [messages, setMessages] = useState(new Map());
   const thinkingStateRef = useRef(new Map());
+  const contentCacheRef = useRef(new Map());
   const [summaryCache, setSummaryCache] = useState(new Map());
   const [criticalAnalysisCache, setCriticalAnalysisCache] = useState(new Map());
   const [loadingUrls, setLoadingUrls] = useState(new Map());
+
   const [isContentReady, setIsContentReady] = useState(true);
   const [webPreview, setWebPreview] = useState(false);
   const [currentUrlTab, setCurrentUrlTab] = useState("welcome");
-  const [urlTabCache, setUrlTabCache] = useState(new Map());
   const [maxDepth, setMaxDepth] = useState(3);
   const { needTime, getNeedTime } = useTimeGussing();
-  const deepSearchState = useDeepSearch(userInput, maxDepth, getNeedTime);
+  const [searchEnabled, setSearchEnabled] = useState(false);
   const [isDeepThingActive, setIsDeepThingActive] = useState(false);
   const updateInfo = useCheckUpdate();
-  const { settings, setSettings } = useSeetingHandler();
+  const { settings, setSettings, fetchDeepSeekConfig } = useSeetingHandler();
+  const { checkBalance, isShowModal, setIsShowModal, calculateModelCalls } =
+    useCheckBalance();
+  const { pointCosts } = useFetchPointCost();
+  const deepSearchState = useDeepSearch(
+    userInput,
+    maxDepth,
+    getNeedTime,
+    calculateModelCalls,
+    checkBalance,
+    setIsShowModal
+  );
 
+  const [networkSelectedModel, setNetworkSelectedModel] =
+    useState("gpt-4o-mini");
+    
+  const thinkingAgent = useMemo(
+    () =>
+      createThingAgent({
+        apiKey: userInput,
+        baseURL: `${config.baseUrl}/text/v1`,
+        model: networkSelectedModel.toLowerCase(),
+      }),
+    [networkSelectedModel, userInput]
+  );
 
-  const { checkBalance, isShowModal, setIsShowModal } = useCheckBalance();
+  const {
+    message,
+    isLoading,
+    handleSubmit: handleNetworkSubmit,
+    setMessage,
+  } = useMessageHandler(thinkingAgent, networkSelectedModel, userInput, searchEnabled);
+
+  const {
+    messages: notesMessages,
+    loading: notesLoading,
+    expandedDocs: notesExpandedDocs,
+    copiedMessageId: notesCopiedMessageId,
+    setExpandedDocs: setNotesExpandedDocs,
+    handleSubmit: handleNotesSubmit,
+    handleCopy: handleNotesCopy,
+    handleRegenerate: handleNotesRegenerate,
+    handleReset: handleNotesReset,
+    setMessages: setNotesMessages,
+  } = useNotesChat(userInput, networkSelectedModel, searchEnabled);
+
+  useEffect(() => {
+    fetchDeepSeekConfig();
+  }, [activatePage]);
+
   const {
     fetchRelatedQuestions,
     currentUrlRelatedQuestions,
@@ -145,8 +199,9 @@ export default function Sidebar() {
     const shouldSkipFetch = (url, content) => {
       const isLoading = loadingUrls.get(url);
       const hasSummary = summaryCache.get(url);
+      const activePage = activatePage === 0;
       const hasNoContent = !content || !url;
-      return isLoading || hasSummary || hasNoContent;
+      return isLoading || hasSummary || hasNoContent || !activePage;
     };
 
     const handleExistingSummary = (url) => {
@@ -172,7 +227,6 @@ export default function Sidebar() {
         setPageLoading(true);
         setLoadingUrls((prev) => new Map(prev).set(url, true));
         const cachedSummary = await getWebSummary(url);
-        console.log("cachedSummary", cachedSummary);
         if (cachedSummary) {
           setPageLoading(false);
           setLoadingUrls((prev) => new Map(prev).set(url, false));
@@ -211,6 +265,7 @@ export default function Sidebar() {
     pageLoading,
     summaryCache,
     loadingUrls,
+    activatePage,
   ]);
 
   useEffect(() => {
@@ -226,8 +281,9 @@ export default function Sidebar() {
 
     const shouldFetchAnalysis = (url) => {
       const isLoading = loadingUrls.get(url);
+      const activePage = activatePage === 0;
       const hasAnalysis = criticalAnalysisCache.get(url);
-      return !isLoading && !hasAnalysis;
+      return !isLoading && !hasAnalysis && activePage;
     };
 
     const handleExistingAnalysis = (url) => {
@@ -282,26 +338,31 @@ export default function Sidebar() {
     summaryCache,
     loadingUrls,
     currentUrlTab,
+    activatePage,
   ]);
 
   const [selectedModel, setSelectedModel] = useState("Deepseek-R1");
   const [selectedModelProvider, setSelectedModelProvider] =
     useState("super2brain");
+
   const [selectedModelIsSupportsImage, setSelectedModelIsSupportsImage] =
     useState(true);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
 
-  const addMessage = useCallback((url, role, content, model = "") => {
-    setMessages((prevMessages) => {
-      const urlMessages = prevMessages.get(url) || [];
-      const newMessages = new Map(prevMessages);
-      newMessages.set(url, [
-        ...urlMessages,
-        { role, content, timestamp: Date.now(), model },
-      ]);
-      return newMessages;
-    });
-  }, []);
+  const addMessage = useCallback(
+    (url, role, content, model = "", reason_content = "") => {
+      setMessages((prevMessages) => {
+        const urlMessages = prevMessages.get(url) || [];
+        const newMessages = new Map(prevMessages);
+        newMessages.set(url, [
+          ...urlMessages,
+          { role, content, timestamp: Date.now(), model, reason_content },
+        ]);
+        return newMessages;
+      });
+    },
+    []
+  );
 
   const getCurrentUrlMessages = React.useCallback(() => {
     return (messages.get(currentUrl) || []).filter(
@@ -319,7 +380,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     const handleMessage = (message) => {
-      if (message.type === "MARKDOWN_CONTENT") {
+      if (message.type === "CURRENT_CONTENT_MARKDOWN") {
         contentCacheRef.current.set(currentUrl, message.payload);
         setPageContent(message.payload);
       }
@@ -349,7 +410,6 @@ export default function Sidebar() {
             });
             return response?.status === "ok";
           } catch (error) {
-            console.log("Content script 未就绪:", error);
             return false;
           }
         };
@@ -358,7 +418,6 @@ export default function Sidebar() {
         setIsContentReady(isReady);
 
         if (!isReady) {
-          console.log("等待 content script 就绪...");
           setPageContent("页面加载中，请稍后重试...");
           setTimeout(() => updateUrlAndContent(), 1000);
           return;
@@ -380,23 +439,16 @@ export default function Sidebar() {
           url.startsWith("chrome://") ||
           url.startsWith("chrome-extension://")
         ) {
-          console.log("⚠️ 不支持的URL类型");
           setPageContent("此页面不支持内容获取");
           return;
         }
 
         if (url) {
           const cachedContent = contentCacheRef.current.get(url);
-          console.log("📦 检查内容缓存:", {
-            url,
-            hasCachedContent: !!cachedContent,
-            cachedContentLength: cachedContent?.length,
-          });
 
           if (cachedContent) {
-            console.log("✅ 使用缓存的内容");
             const buildSystemMessage = (cachedContent) => `
-              你当前访问的页面是：${url}
+              你是一个网页分析专家，你当前访问的页面是：${url}
               页面内容是：${cachedContent}
             `;
 
@@ -420,13 +472,11 @@ export default function Sidebar() {
               return newMessages;
             });
           } else {
-            console.log("🔄 没有找到缓存，准备发送消息给content script");
             const sendMessagePromise = () =>
               new Promise((resolve, reject) => {
-                console.log("📤 发送GET_MARKDOWN消息到tab:", tab.id);
                 chrome.tabs.sendMessage(
                   tab.id,
-                  { type: "GET_MARKDOWN", url },
+                  { type: "GET_CURRENT_CONTENT_MARKDOWN", url },
                   (response) => {
                     if (chrome.runtime.lastError) {
                       console.error(
@@ -435,7 +485,6 @@ export default function Sidebar() {
                       );
                       reject(chrome.runtime.lastError);
                     } else {
-                      console.log("✅ 消息发送成功，等待响应");
                       resolve(response);
                     }
                   }
@@ -447,7 +496,6 @@ export default function Sidebar() {
             } catch (error) {
               console.warn("⚠️ content script未准备好:", error);
               setPageContent("页面加载中，请稍后重试...");
-              console.log("🔄 1秒后重试获取内容");
               setTimeout(() => updateUrlAndContent(), 1000);
             }
           }
@@ -496,7 +544,7 @@ export default function Sidebar() {
 
         setIsAiThinking(true);
         thinkingStateRef.current.set(currentUrl, true);
-        console.log("selectedModel", selectedModelProvider);
+        setCurrentUrlChatLoading((prev) => new Map(prev).set(currentUrl, true));
 
         const currentMessages = [
           {
@@ -506,7 +554,6 @@ export default function Sidebar() {
           ...getCurrentUrlMessages(),
           ...(isRetry ? [] : processedMessages),
         ];
-        console.log("currentMessages", settings[selectedModelProvider].apiKey);
         const response = await callAI({
           provider: selectedModelProvider,
           baseUrl: settings[selectedModelProvider].baseUrl,
@@ -529,27 +576,41 @@ export default function Sidebar() {
             }
             if (progress.state === 2) {
               const relatedQuestions = progress.relatedQuestions;
-              console.log("relatedQuestions", relatedQuestions);
             }
           },
         });
-
-        addMessage(
-          currentUrl,
-          MessageRole.ASSISTANT,
-          response.content,
-          selectedModel
-        );
+        if (response.reason_content) {
+          addMessage(
+            currentUrl,
+            MessageRole.ASSISTANT,
+            response.content,
+            selectedModel,
+            response.reason_content
+          );
+        } else {
+          addMessage(
+            currentUrl,
+            MessageRole.ASSISTANT,
+            response.content,
+            selectedModel
+          );
+        }
       } catch (error) {
         console.error("API 请求失败:", error);
+        if (error.message === "余额不足") {
+          setIsShowModal(true);
+        }
         addMessage(
           currentUrl,
           MessageRole.ASSISTANT,
-          `请求失败: 请检查你的 apikey 或者 网络`
+          `${error.message}`
         );
       } finally {
         setIsAiThinking(false);
         thinkingStateRef.current.set(currentUrl, false);
+        setCurrentUrlChatLoading((prev) =>
+          new Map(prev).set(currentUrl, false)
+        );
       }
     },
     [
@@ -561,6 +622,12 @@ export default function Sidebar() {
       selectedModel,
     ]
   );
+
+  useEffect(() => {
+    const isUrlThinking = thinkingStateRef.current.get(currentUrl) || false;
+    const isUrlLoading = currentUrlChatLoading.get(currentUrl) || false;
+    setIsAiThinking(isUrlThinking || isUrlLoading);
+  }, [currentUrl, currentUrlChatLoading]);
 
   const handleCopy = async (content, messageId) => {
     try {
@@ -608,9 +675,16 @@ export default function Sidebar() {
     };
   }, []);
 
+  const handleSettingsUpdate = useCallback(
+    (newSettings) => {
+      setSettings(newSettings);
+    },
+    [setSettings]
+  );
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-100">
-      <div className="flex-1 flex flex-col min-w-0 m-1 rounded-xl bg-white">
+      <div className="flex-1 flex flex-col min-w-0 m-1 rounded-l-xl bg-white">
         <AnimatePresence mode="wait">
           {activatePage === 0 ? (
             <motion.div
@@ -691,6 +765,24 @@ export default function Sidebar() {
                 setSelectedModelIsSupportsImage={
                   setSelectedModelIsSupportsImage
                 }
+                networkSelectedModel={networkSelectedModel}
+                setNetworkSelectedModel={setNetworkSelectedModel}
+                message={message}
+                isLoading={isLoading}
+                handleNetworkSubmit={handleNetworkSubmit}
+                setMessage={setMessage}
+                notesMessages={notesMessages}
+                notesLoading={notesLoading}
+                notesExpandedDocs={notesExpandedDocs}
+                notesCopiedMessageId={notesCopiedMessageId}
+                setExpandedDocs={setNotesExpandedDocs}
+                handleNotesSubmit={handleNotesSubmit}
+                handleNotesCopy={handleNotesCopy}
+                handleNotesRegenerate={handleNotesRegenerate}
+                handleNotesReset={handleNotesReset}
+                setMessages={setNotesMessages}
+                searchEnabled={searchEnabled}
+                setSearchEnabled={setSearchEnabled}
               />
             </motion.div>
           ) : activatePage === 3 ? (
@@ -704,6 +796,8 @@ export default function Sidebar() {
               transition={pageTransition}
             >
               <DeepSearch
+                selectedModel={deepSearchState.selectedModel}
+                setSelectedModel={deepSearchState.setSelectedModel}
                 maxDepth={maxDepth}
                 setMaxDepth={setMaxDepth}
                 query={deepSearchState.query}
@@ -715,6 +809,7 @@ export default function Sidebar() {
                 isDeepThingActive={isDeepThingActive}
                 setIsDeepThingActive={setIsDeepThingActive}
                 needTime={needTime}
+                setMessages={deepSearchState.setMessages}
               />
             </motion.div>
           ) : activatePage === 5 ? (
@@ -728,12 +823,15 @@ export default function Sidebar() {
               transition={pageTransition}
             >
               <SettingPage
+                pointCosts={pointCosts}
                 settings={settings}
                 setSettings={setSettings}
+                onSettingsUpdate={handleSettingsUpdate}
                 webPreview={webPreview}
                 setWebPreview={setWebPreview}
                 setUserInput={setUserInput}
                 userInput={userInput}
+                setIsShowModal={setIsShowModal}
               />
             </motion.div>
           ) : activatePage === 4 ? (
@@ -752,7 +850,7 @@ export default function Sidebar() {
         </AnimatePresence>
       </div>
 
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-50">
+      <div className="w-12 flex-shrink-0 bg-gray-100">
         <ActivateBar
           activatePage={activatePage}
           setActivatePage={setActivatePage}

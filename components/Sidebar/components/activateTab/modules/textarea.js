@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Send, Plus } from "lucide-react";
-import { AI_MODELS } from "../../../config/models";
+import { MODELS } from "../../../config/models";
 import { Tooltip } from "react-tooltip";
 import { createTags } from "../../../contants/activateBar";
 import { useScreenshotHandler } from "../../../hooks/useScreenshotHandler";
 import { ModelSelector } from "../../common/modelSelect";
 import { TagButton } from "./TagButton";
-
+import { AI_MODELS } from "../../../config/models";
 export const TextareaRef = ({
   useInput,
   onSubmit,
@@ -87,10 +87,6 @@ export const TextareaRef = ({
         return;
 
       const actionMap = {
-        bookmark: async () => {
-          const result = await handleBookmarkSave(currentUrl, document.title);
-          if (result?.success) console.log("收藏成功");
-        },
         mindmap: () =>
           chrome.runtime.sendMessage({
             type: "OPEN_MINDMAP",
@@ -116,29 +112,6 @@ export const TextareaRef = ({
       createMessage,
     ]
   );
-
-  const handleBookmarkSave = async (url, title) => {
-    try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        type: "SAVE_CONTENT",
-      });
-
-      if (response?.received) {
-        console.log("收藏请求已发送");
-        return { success: true };
-      }
-
-      throw new Error("保存失败");
-    } catch (error) {
-      console.error("收藏失败:", error);
-      throw error;
-    }
-  };
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -273,7 +246,7 @@ export const TextareaRef = ({
                 anchorSelect=".button-tag-submit"
                 place="top"
               >
-                {isContentReady ? "发送消息" : "页面加载中..."}
+                {isContentReady ? "发送消息" : "正在获取页面内容..."}
               </Tooltip>
             </div>
           </div>

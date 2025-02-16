@@ -41,6 +41,23 @@ const MarkdownRenderer = ({
     []
   );
 
+  const handleSaveWebPage = async () => {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: "SAVE_CONTENT",
+    });
+
+    if (response?.received) {
+      return { success: true };
+    }
+
+    throw new Error("保存失败");
+  };
+
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -52,7 +69,13 @@ const MarkdownRenderer = ({
 
     if (currentUrlTab === "welcome") {
       return content ? (
-        <div className="prose prose-sm md:prose-base lg:prose-lg prose-slate mx-4">
+        <div className="prose prose-sm md:prose-base lg:prose-lg prose-slate mx-4 mt-4">
+          <div
+            className="py-2 text-sm text-indigo-500 cursor-pointer hover:bg-indigo-600/10 hover:text-indigo-600 px-4 py-2 rounded-md mx-auto w-fit text-center transition-colors duration-200"
+            onClick={handleSaveWebPage}
+          >
+            觉得该网页不错？点击收藏到知识库
+          </div>
           <div dangerouslySetInnerHTML={{ __html: marked(content) }} />
         </div>
       ) : (

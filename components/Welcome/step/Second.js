@@ -14,7 +14,7 @@ const ImportModal = ({ isOpen, onClose, onConfirm }) => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
-      <div className="fixed inset-0 bg-black/30" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30" />
       <div
         className="relative bg-white rounded-lg p-6 w-[90%] max-w-4xl mx-4 
         shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm"
@@ -47,7 +47,6 @@ const ImportModal = ({ isOpen, onClose, onConfirm }) => {
             isAllSelected={isAllSelected}
             onImportSuccess={() => {
               onClose();
-              onConfirm();
             }}
           />
         </div>
@@ -61,9 +60,11 @@ const SkipModal = ({ isOpen, onClose, onConfirm, onContinue }) => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
-      <div className="fixed inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative bg-white rounded-lg p-6 w-[90%] max-w-md mx-4 
-        shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm">
+      <div className="fixed inset-0 bg-black/30" />
+      <div
+        className="relative bg-white rounded-lg p-6 w-[90%] max-w-md mx-4 
+        shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm"
+      >
         <h3 className="text-xl font-semibold mb-4">确认跳过</h3>
         <p className="text-gray-600 mb-6">
           跳过导入步骤将无法使用书签相关的智能功能，确定要跳过吗？
@@ -89,22 +90,96 @@ const SkipModal = ({ isOpen, onClose, onConfirm, onContinue }) => {
   );
 };
 
+const RefreshModal = ({ isOpen, onClose, onRefresh }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black/30" />
+      <div
+        className="relative bg-white rounded-lg p-6 w-[90%] max-w-md mx-4 
+        shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm"
+      >
+        <h3 className="text-xl font-semibold mb-4">需要刷新标签页</h3>
+        <p className="text-gray-600 mb-6">
+          由于浏览器限制，必须刷新当前已打开的标签页才能使用 Super2Brain。
+          新打开的标签页无需刷新。
+        </p>
+        <div className="flex justify-end gap-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg transition-colors bg-gray-200 
+            text-gray-600 hover:bg-gray-300"
+          >
+            暂不刷新
+          </button>
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2 text-sm rounded-lg transition-colors bg-indigo-600 
+            text-white hover:bg-indigo-500"
+          >
+            立即刷新
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ImportingModal = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black/30" />
+      <div className="relative bg-white rounded-lg p-6 w-[90%] max-w-md mx-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm">
+        <h3 className="text-xl font-semibold mb-4">正在导入书签</h3>
+        <p className="text-gray-600 mb-6">
+          正在导入您的书签，请勿关闭此页面。导入完成后会自关闭
+        </p>
+        <div className="flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Second({ onNext }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSkipModalOpen, setIsSkipModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isRefreshModalOpen, setIsRefreshModalOpen] = useState(true);
+  const [isImportingModalOpen, setIsImportingModalOpen] = useState(false);
+
   const handleImportClick = () => {
     setIsModalOpen(true);
   };
 
   const handleConfirmImport = () => {
     setIsModalOpen(false);
-    setIsConfirmModalOpen(true);
+    setIsImportingModalOpen(true);
   };
 
   const handleConfirmModalClose = () => {
     setIsConfirmModalOpen(false);
     onNext();
+  };
+
+  const handleRefresh = () => {
+    chrome.runtime.sendMessage(
+      {
+        action: "refreshAllTabs",
+        bypassCache: true,
+      },
+      (response) => {
+        if (response.success) {
+          setIsRefreshModalOpen(false);
+        } else {
+          console.error("刷新标签页失败:", response.error);
+        }
+      }
+    );
   };
 
   return (
@@ -137,10 +212,17 @@ export default function Second({ onNext }) {
         </button>
       </div>
 
+      <RefreshModal
+        isOpen={isRefreshModalOpen}
+        onClose={() => setIsRefreshModalOpen(false)}
+        onRefresh={handleRefresh}
+      />
+
       <ImportModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={handleConfirmImport}
+        onNext={onNext}
       />
 
       <SkipModal
@@ -160,6 +242,11 @@ export default function Second({ onNext }) {
         isOpen={isConfirmModalOpen}
         onClose={handleConfirmModalClose}
         onConfirm={handleConfirmModalClose}
+      />
+
+      <ImportingModal
+        isOpen={isImportingModalOpen}
+        onClose={() => setIsImportingModalOpen(false)}
       />
     </div>
   );

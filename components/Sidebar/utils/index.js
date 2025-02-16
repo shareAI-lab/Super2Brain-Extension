@@ -2,65 +2,23 @@ import { search, rerankNotes } from "./service";
 import { OpenAI } from "openai";
 import { getSystemPrompt } from "./getSystemPrompt";
 import { config } from "../../config/index";
+import {
+  handleStreamResponse,
+  createStreamRequest,
+} from "../components/networkPage/utils/streamUtils";
 
-
-const determineSearchNeed = async (userInput, query, model) => {
-  const openai = new OpenAI({
-    apiKey: userInput,
-    baseURL: `${config.baseUrl}/text/v1`,
-    dangerouslyAllowBrowser: true,
-  });
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `你是一个判断助手。请判断用户的问题是否需要从知识库中进行向量搜索。
-                    对于普通的问候、翻译、数学计算这三种问题，不需要进行向量搜索。
-                    对于其他问题，则需要进行向量搜索。
-                    
-                    请直接返回一个JSON格式的结果，格式如下：
-                    {
-                      "needSearch": true/false,
-                      "reason": "这里是判断原因",
-                      "searchKeywords": "这里是搜索关键词"
-                    }`,
-        },
-        { role: "user", content: query },
-      ],
-    });
-
-    const parsedContent = JSON.parse(response.choices[0].message.content);
-
-    return {
-      needSearch: Boolean(parsedContent.needSearch),
-      reason: String(parsedContent.reason || "未提供原因"),
-      searchKeywords: String(parsedContent.searchKeywords || query),
-    };
-  } catch (error) {
-    console.error("判断搜索需求时发生错误:", error);
-    return {
-      needSearch: false,
-      reason: "处理请求时发生错误",
-      searchKeywords: query,
-    };
-  }
+const determineSearchNeed = async (userInput, query, model, searchEnabled) => {
+  return {
+    needSearch: searchEnabled,
+    reason: "未提供原因",
+    searchKeywords: String(query).trim(),
+  };
 };
 
 const generateSimilarQuestions =
   (openai) => async (query, response, onProgress) => {
-    const processQuestions = (content) =>
-      (content || "").split("\n").filter((q) => q.trim());
-
-    const handleProgress = (questions) => {
-      onProgress?.({ stage: 5, questions });
-      return questions;
-    };
-
     try {
-      const completion = await openai.chat.completions.create({
+      const stream = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -71,28 +29,25 @@ const generateSimilarQuestions =
           {
             role: "user",
             content: `基于以下问题和回答，生成3个用户可能会继续追问的后续问题：
-        
-        原问题：${query}
-        回答：${response}
+      
+      原问题：${query}
+      回答：${response}
 
-        要求：
-        1. 问题要对原问题进行深入探讨
-        2. 寻求更多相关细节
-        3. 探索相关但不同的方面
+      要求：
+      1. 问题要对原问题进行深入探讨
+      2. 寻求更多相关细节
+      3. 探索相关但不同的方面
 
-        请直接返回3个问题，每个问题占一行。`,
+      请直接返回3个问题，每个问题占一行。`,
           },
         ],
+        stream: true,
       });
 
-      return Promise.resolve(completion)
-        .then((result) => result.choices[0]?.message?.content)
-        .then(processQuestions)
-        .then(handleProgress)
-        .catch((error) => {
-          console.error("生成相似问题时发生错误:", error);
-          return [];
-        });
+      const content = await handleStreamResponse(stream);
+      const questions = content.split("\n").filter((q) => q.trim());
+      onProgress?.({ stage: 5, questions });
+      return questions;
     } catch (error) {
       console.error("生成相似问题时发生错误:", error);
       return [];
@@ -116,7 +71,6 @@ const formatVectorResults = (results) => {
 const getVector = async (userInput, query, onProgress) => {
   try {
     const results = await search(userInput, query);
-    console.log("results", results);
 
     onProgress?.({
       stage: 2,
@@ -135,11 +89,50 @@ const formatFinalResponse = (response) => {
   return response.trim();
 };
 
+const handleStreamOutput = (stream, onProgress) => async () => {
+  let accumulatedContent = "";
+  let accumulatedReasoningContent = "";
+
+  try {
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      const reasoningContent = chunk.choices[0]?.delta?.reasoning_content || "";
+      accumulatedContent += content;
+      accumulatedReasoningContent += reasoningContent;
+      onProgress?.({
+        stage: 3,
+        response: accumulatedContent,
+        reasoning_content: accumulatedReasoningContent,
+      });
+    }
+    return accumulatedContent;
+  } catch (error) {
+    console.error("处理流式响应时发生错误:", error);
+    throw error;
+  }
+};
+
+const processStreamResponse = async (openai, messages, model, onProgress) => {
+  try {
+    const stream = await openai.chat.completions.create({
+      model,
+      messages,
+      stream: true,
+    });
+
+    return await handleStreamOutput(stream, onProgress)();
+  } catch (error) {
+    console.error("创建流式响应时发生错误:", error);
+    throw error;
+  }
+};
+
 export const getResponse = async (
   query,
   preMessages,
   userInput,
   model,
+  searchEnabled,
   onProgress
 ) => {
   onProgress?.({ stage: 1 });
@@ -150,40 +143,39 @@ export const getResponse = async (
     dangerouslyAllowBrowser: true,
   });
 
-  const { needSearch, reason, searchKeywords } = await determineSearchNeed(
+  const { needSearch, searchKeywords } = await determineSearchNeed(
     userInput,
     query,
-    model
+    model,
+    searchEnabled
   );
 
   if (!needSearch) {
     onProgress?.({ stage: -1 });
-    const directResponse = await openai.chat.completions.create({
-      model,
-      messages: [
+
+    try {
+      const messages = [
         {
           role: "system",
-          content:
-            "你是一个友好的AI助手，可以帮助用户回答问题、闲聊和进行翻译。",
+          content: "回答用户的问题",
         },
         ...preMessages,
         { role: "user", content: query },
-      ],
-      stream: false,
-    });
+      ];
 
-    const formattedResponse = formatFinalResponse(
-      directResponse.choices[0].message.content
-    );
+      const streamContent = await processStreamResponse(
+        openai,
+        messages,
+        model,
+        onProgress
+      );
 
-    onProgress?.({
-      stage: 3,
-      response: formattedResponse,
-    });
-
-    const questionGenerator = generateSimilarQuestions(openai);
-    await questionGenerator(query, formattedResponse, onProgress);
-    return formattedResponse;
+      const questionGenerator = generateSimilarQuestions(openai);
+      await questionGenerator(query, streamContent, onProgress);
+      return streamContent;
+    } catch (error) {
+      throw new Error(`API请求失败: ${error.message}`);
+    }
   }
 
   onProgress?.({
@@ -217,24 +209,16 @@ export const getResponse = async (
   });
 
   try {
-    const completion = await openai.chat.completions.create({
-      model,
+    const streamContent = await processStreamResponse(
+      openai,
       messages,
-      stream: false,
-    });
-
-    const formattedResponse = formatFinalResponse(
-      completion.choices[0].message.content
+      model,
+      onProgress
     );
 
-    onProgress?.({
-      stage: 3,
-      response: formattedResponse,
-    });
-
     const questionGenerator = generateSimilarQuestions(openai);
-    await questionGenerator(query, formattedResponse, onProgress);
-    return formattedResponse;
+    await questionGenerator(query, streamContent, onProgress);
+    return streamContent;
   } catch (error) {
     onProgress?.({
       stage: 6,

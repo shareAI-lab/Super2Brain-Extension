@@ -149,7 +149,6 @@ const callAI = async ({
   messages,
   options = {},
 }) => {
-  console.log(messages);
 
   const cleanBaseUrl = removeTrailingV1(baseUrl);
 

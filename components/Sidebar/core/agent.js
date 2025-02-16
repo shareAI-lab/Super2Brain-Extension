@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { config } from "../../config/index";
 import { extractUrls } from "./webSearch";
+import { createStreamCompletion } from "../components/networkPage/utils/streamUtils";
 
 const callOpenai = async (messages, model = "gpt-4o-mini", userInput) => {
   try {
@@ -18,23 +19,36 @@ const callOpenai = async (messages, model = "gpt-4o-mini", userInput) => {
       dangerouslyAllowBrowser: true,
     });
 
-    const response = await openai.chat.completions.create({
+    const response = await createStreamCompletion(openai, {
       messages,
       model,
+      temperature: 0.7,
+      max_tokens: 1000,
+      stream: true,
     });
 
-    if (!response || !response.choices || response.choices.length === 0) {
-      throw new Error("API 返回结果异常");
+    if (response.status === 504) {
+      throw new Error("链接超时，请检查网络连接并稍后重试");
+    }
+
+    if (response.status === 402) {
+      throw new Error("账户余额不足，请充值后继续使用");
     }
 
     return response;
   } catch (error) {
     console.error("OpenAI API 调用失败:", error.message);
+    if (
+      error.message.includes("链接超时") ||
+      error.message.includes("余额不足")
+    ) {
+      throw new Error(error.message);
+    }
     throw new Error(`AI 服务调用失败: ${error.message}`);
   }
 };
 
-const analyzeQuery = async (query, updateStatus, userInput) => {
+const analyzeQuery = async (query, updateStatus, userInput, selectedModel) => {
   updateStatus(`思考问题：${query}`);
   const response = await callOpenai(
     [
@@ -52,15 +66,20 @@ const analyzeQuery = async (query, updateStatus, userInput) => {
         content: query,
       },
     ],
-    "gpt-4o",
+    selectedModel,
     userInput
   );
 
-  return response.choices[0].message.content.trim();
+  return response.trim();
 };
 
 const buildWebSearchUrl = async (query, updateStatus, userInput) => {
-  const searchKey = await analyzeQuery(query, updateStatus, userInput);
+  const searchKey = await analyzeQuery(
+    query,
+    updateStatus,
+    userInput,
+    "gpt-4o"
+  );
   updateStatus(`搜索关键词：${searchKey}`);
   return [`https://www.bing.com/search?q=${encodeURIComponent(searchKey)}`];
 };
@@ -105,8 +124,13 @@ const fetchWebContent = async (query, userInput, updateStatus) => {
   return extractResponse.contents;
 };
 
-const analyzeUrlContent = async (query, urlContent, userInput) => {
-  const response = await callOpenai(
+const analyzeUrlContent = async (
+  query,
+  urlContent,
+  userInput,
+  selectedModel
+) => {
+  return await callOpenai(
     [
       {
         role: "system",
@@ -117,17 +141,17 @@ const analyzeUrlContent = async (query, urlContent, userInput) => {
         content: `问题：${query}\n网页内容：${urlContent}`,
       },
     ],
-    "gpt-4o",
+    selectedModel,
     userInput
   );
-
-  return response.choices[0].message.content;
 };
 
-const getFinalResponse = async (query, formattedResults, userInput) => {
-  console.log("formattedResults", formattedResults);
-  console.log("query", query);
-  console.log("userInput", userInput);
+const getFinalResponse = async (
+  query,
+  formattedResults,
+  userInput,
+  selectedModel
+) => {;
   const response = await callOpenai(
     [
       {
@@ -139,18 +163,19 @@ const getFinalResponse = async (query, formattedResults, userInput) => {
         content: `问题：${query}\n 每个网页的回答：${formattedResults}`,
       },
     ],
-    "gpt-4o-mini",
+    selectedModel,
     userInput
   );
 
-  return response.choices[0].message.content;
+  return response;
 };
 
 const getDeepFinalResponse = async (
   query,
   currentResponse,
   formattedResults,
-  userInput
+  userInput,
+  selectedModel
 ) => {
   const response = await callOpenai(
     [
@@ -163,14 +188,20 @@ const getDeepFinalResponse = async (
         content: `问题：${query}\n 当前回答：${currentResponse}\n 补充回答：${formattedResults}`,
       },
     ],
-    "gpt-4o-mini",
+    selectedModel,
     userInput
   );
 
-  return response.choices[0].message.content;
+  return response;
 };
 
-const thinkContent = async (query, currentResponse, index, userInput) => {
+const thinkContent = async (
+  query,
+  currentResponse,
+  index,
+  userInput,
+  selectedModel
+) => {
   const response = await callOpenai(
     [
       {
@@ -205,11 +236,11 @@ const thinkContent = async (query, currentResponse, index, userInput) => {
         content: `原始问题：${query}\n当前回答：${currentResponse}`,
       },
     ],
-    "gpt-4o",
+    selectedModel,
     userInput
   );
 
-  return response.choices[0].message.content;
+  return response;
 };
 
 const getDeepResponse = async (
@@ -243,7 +274,8 @@ const getDeepResponse = async (
           analyzeUrlContent(
             questionList[questionIndex],
             urlContent.content,
-            userInput
+            userInput,
+            "gpt-4o"
           )
         )
       )
@@ -264,7 +296,8 @@ const getDeepResponse = async (
     query,
     finalResponse,
     formattedDeepResults,
-    userInput
+    userInput,
+    "gpt-4o"
   );
 
   if (depth >= maxDepth) {
@@ -273,7 +306,7 @@ const getDeepResponse = async (
 
   updateStatus("检查答案完整性");
   const deepThinkQuestions = JSON.parse(
-    await thinkContent(query, finalDeepResponse, depth + 1, userInput)
+    await thinkContent(query, finalDeepResponse, depth + 1, userInput, "gpt-4o")
   );
 
   if (!Array.isArray(deepThinkQuestions) || deepThinkQuestions.length === 0) {
@@ -314,7 +347,7 @@ const createContext = (
   return context;
 };
 
-const isGreeting = async (text, userInput) => {
+const isGreeting = async (text, userInput, selectedModel) => {
   try {
     const response = await callOpenai(
       [
@@ -330,18 +363,18 @@ const isGreeting = async (text, userInput) => {
           content: text,
         },
       ],
-      "gpt-4o-mini",
+      selectedModel,
       userInput
     );
 
-    return response.choices[0].message.content.trim().toLowerCase() === "true";
+    return response.trim().toLowerCase() === "true";
   } catch (error) {
     console.error("判断问候语失败:", error);
     return false;
   }
 };
 
-const getGreetingResponse = async (text, userInput) => {
+const getGreetingResponse = async (text, userInput, selectedModel) => {
   try {
     const response = await callOpenai(
       [
@@ -358,11 +391,11 @@ const getGreetingResponse = async (text, userInput) => {
           content: text,
         },
       ],
-      "gpt-4o-mini",
+      selectedModel,
       userInput
     );
 
-    return response.choices[0].message.content;
+    return response;
   } catch (error) {
     console.error("生成问候回复失败:", error);
     return "你好！我是你的AI助手，很高兴为你服务。";
@@ -375,11 +408,12 @@ const getResponse = async (
   depth = 0,
   maxDepth = 1,
   userInput,
+  selectedModel,
   onStatusUpdate
 ) => {
   try {
-    if (await isGreeting(query, userInput)) {
-      return await getGreetingResponse(query, userInput);
+    if (await isGreeting(query, userInput, selectedModel)) {
+      return await getGreetingResponse(query, userInput, selectedModel);
     }
 
     const context = createContext(
@@ -399,7 +433,7 @@ const getResponse = async (
     context.updateStatus("分析搜索结果");
     const analyzeResults = await Promise.all(
       urlContents.map((urlContent) =>
-        analyzeUrlContent(query, urlContent.content, userInput)
+        analyzeUrlContent(query, urlContent.content, userInput, selectedModel)
       )
     );
 
@@ -411,7 +445,8 @@ const getResponse = async (
     const finalResponse = await getFinalResponse(
       query,
       formattedResults,
-      userInput
+      userInput,
+      selectedModel
     );
 
     if (depth >= maxDepth) {
@@ -420,7 +455,7 @@ const getResponse = async (
 
     context.updateStatus("深入思考分析");
     const deepThinkQuestions = JSON.parse(
-      await thinkContent(query, finalResponse, depth, userInput)
+      await thinkContent(query, finalResponse, depth, userInput, selectedModel)
     );
 
     if (deepThinkQuestions.length > 0) {

@@ -12,6 +12,7 @@ const fetchRelatedQuestions = async (query, answer, userInput) => {
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
+      stream: true,
       messages: [
         {
           role: "system",
@@ -40,14 +41,39 @@ const fetchRelatedQuestions = async (query, answer, userInput) => {
     throw new Error("获取相关问题失败");
   }
 
-  const data = await response.json();
-  return (data?.choices?.[0]?.message?.content || "")
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullContent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n").filter((line) => line.trim());
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          fullContent += parsed.choices[0]?.delta?.content || "";
+        } catch (e) {
+          console.error("解析流式数据失败:", e);
+        }
+      }
+    }
+  }
+
+  return fullContent
     .split("\n")
     .map((q) => q.trim())
     .filter((q) => q.length > 0);
 };
 
-export const useMessageHandler = (thinkingAgent, model, userInput) => {
+export const useMessageHandler = (thinkingAgent, model, userInput, searchEnabled) => {
   const [message, setMessage] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [state, setState] = useState(0);
@@ -168,11 +194,13 @@ export const useMessageHandler = (thinkingAgent, model, userInput) => {
           statusMessage: "正在思考问题",
           relatedQuestions: [],
           questionsLoading: true,
+          isReasoningExpanded: true,
         },
       ]);
 
       await getResponse(
         query,
+        searchEnabled,
         async (progress) => {
           if (progress.state === 2) {
             setMessage((prev) => {
@@ -214,13 +242,11 @@ export const useMessageHandler = (thinkingAgent, model, userInput) => {
                 })
               );
             }
-
-            setIsLoading(false);
           } else if (progress.state === 1 && progress.searchUrl) {
             setMessage((prev) =>
               updateLastAssistantMessage(prev, {
                 status: "searching",
-                statusMessage: "正在搜索相关信息...",
+                statusMessage: "正在搜索相关信息",
               })
             );
 
@@ -304,24 +330,50 @@ export const useMessageHandler = (thinkingAgent, model, userInput) => {
                       }
                       return prev;
                     });
+                  },
+                  (streamData) => {
+                    setMessage((prev) => {
+                      const messages = [...prev];
+                      const lastIndex = messages.findLastIndex(
+                        (msg) => msg.role === "assistant"
+                      );
+                      if (lastIndex !== -1) {
+                        const currentContent =
+                          messages[lastIndex].content || "";
+                        const newContent = currentContent + streamData.content;
+
+                        messages[lastIndex] = {
+                          ...messages[lastIndex],
+                          content: newContent,
+                          reasoning_content:
+                            (messages[lastIndex].reasoning_content || "") +
+                            streamData.reasoningContent,
+                          status: "processing",
+                          statusMessage: "",
+                        };
+                      }
+                      return messages;
+                    });
                   }
                 );
                 setMessage((prev) =>
                   updateLastAssistantMessage(prev, {
-                    content: response,
+                    content: response.content,
+                    reasoning_content: response.reasoning_content,
                     isComplete: true,
-                    status: "processing",
+                    status: "complete",
                     statusMessage: "",
                   })
                 );
                 const relatedQuestions = await fetchRelatedQuestions(
                   query,
-                  response,
+                  response.content,
                   userInput
                 );
                 setMessage((prev) =>
                   updateLastAssistantMessage(prev, {
-                    content: response,
+                    content: response.content,
+                    reasoning_content: response.reasoning_content,
                     isComplete: true,
                     status: "complete",
                     statusMessage: "",

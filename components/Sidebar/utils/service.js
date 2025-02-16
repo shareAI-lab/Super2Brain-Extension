@@ -28,7 +28,6 @@ export const search = async (userInput, query) => {
     if (result.code !== 200) {
       throw new Error(result.msg || "请求失败");
     }
-    console.log("result", result);
     return result.data;
   } catch (error) {
     console.error("Error fetching first API:", error);

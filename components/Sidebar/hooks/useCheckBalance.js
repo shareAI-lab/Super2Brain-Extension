@@ -11,7 +11,6 @@ const fetchPoints = async () => {
   }
 
   const data = await response.json();
-  console.log(data);
   return data;
 };
 
@@ -40,6 +39,10 @@ export const useCheckBalance = () => {
     "deepseek-v3": 0,
     "glm-4-32k": 0,
     "glm-4v": 0,
+    "doubao-pro-128k": 0,
+    "doubao-lite-128k": 0,
+    "qwen-max": 0,
+    "qwen-turbo": 0,
   });
   const [balance, setBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +56,6 @@ export const useCheckBalance = () => {
           fetchPoints(),
           fetchBalance(),
         ]);
-        console.log(pointsData);
         setPointsUsed(pointsData);
         setBalance(balanceData.balance);
       } catch (error) {
@@ -73,7 +75,6 @@ export const useCheckBalance = () => {
   const getPointsCost = (times, model, baseCostTimes) => {
     const modelCost = pointsUsed[model.toLowerCase()];
     const miniCost = pointsUsed["gpt-4o-mini"];
-    console.log(pointsUsed);
     if (modelCost === undefined) {
       console.warn(`未找到模型 ${model} 的积分配置`);
       return 0;
@@ -89,13 +90,6 @@ export const useCheckBalance = () => {
     const baseCostTimesNum = Number(baseCostTimes) || 0;
 
     const costPoints = timesNum * modelCost + baseCostTimesNum * miniCost;
-    console.log("计算详情:", {
-      times: timesNum,
-      modelCost,
-      baseCostTimes: baseCostTimesNum,
-      miniCost,
-      result: costPoints,
-    });
 
     return costPoints;
   };
@@ -104,7 +98,6 @@ export const useCheckBalance = () => {
     const balance = await fetchBalance();
 
     const pointsCost = getPointsCost(times, model, baseCostTimes);
-    console.log("消耗的积分", pointsCost);
     if (balance < pointsCost) {
       setIsShowModal(true);
       return false;
@@ -114,5 +107,25 @@ export const useCheckBalance = () => {
     }
   };
 
-  return { pointsUsed, balance, checkBalance, isShowModal, setIsShowModal };
+  const calculateModelCalls = (rounds) => {
+    const check = rounds + 1;
+
+    const selectModelTime = check * 15;
+
+    const baseModelTime = check * 2;
+
+    return {
+      selectModelTime,
+      baseModelTime,
+    };
+  };
+
+  return {
+    pointsUsed,
+    balance,
+    checkBalance,
+    isShowModal,
+    setIsShowModal,
+    calculateModelCalls,
+  };
 };

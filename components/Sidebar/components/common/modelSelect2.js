@@ -1,21 +1,8 @@
-import {
-  AI_MODELS,
-  deepseekModel,
-  claudeModel,
-  openaiModel,
-} from "../../config/models";
-import { Bot, ChevronDown, Settings } from "lucide-react";
-import {
-  getDeepSeekApiKey,
-  getClaudeApiKey,
-  getOpenaiApiKey,
-  getCustomConfig,
-  getLmstudioModels,
-} from "../../../../public/storage";
-import { useState, useEffect } from "react";
-import { getOllamaModels, getCustomModels } from "../../../../public/storage";
+import { AI_MODELS2 } from "../../config/models";
+import { Bot, ChevronDown } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 
-const ModelSelector = ({
+const ModelSelector2 = ({
   setActivatePage,
   useInput,
   isOpen,
@@ -29,148 +16,45 @@ const ModelSelector = ({
   setSelectedModelIsSupportsImage,
 }) => {
   const [modelList, setModelList] = useState([]);
-  const [customModelsDisabled, setCustomModelsDisabled] = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     const initializeModelList = async () => {
-      const [
-        deepSeekKey,
-        claudeKey,
-        openaiKey,
-        ollamaModels,
-        customModels,
-        lmstudioModels,
-      ] = await Promise.all([
-        getDeepSeekApiKey(),
-        getClaudeApiKey(),
-        getOpenaiApiKey(),
-        getOllamaModels(),
-        getCustomModels(),
-        getLmstudioModels(),
-      ]);
-      console.log("customModels", customModels);
-      const customConfig = await getCustomConfig();
-      console.log("customConfig", customConfig);
-      console.log("lmstudioModels", lmstudioModels);
-      const newModelList = [
-        ...Object.values(deepseekModel).map((model) => ({
-          ...model,
-          disabled: !deepSeekKey,
-        })),
-        ...Object.values(claudeModel).map((model) => ({
-          ...model,
-          disabled: !claudeKey,
-        })),
-        ...Object.values(openaiModel).map((model) => ({
-          ...model,
-          disabled: !openaiKey,
-        })),
-        ...Object.values(ollamaModels).map((model) => ({
-          ...model,
-          disabled: false,
-        })),
-        ...Object.values(lmstudioModels).map((model) => ({
-          ...model,
-          disabled: false,
-        })),
-        ...Object.values(customModels).map((model) => ({
-          ...model,
-          disabled: !customConfig?.apiKey,
-        })),
-      ];
-
-      setModelList(newModelList);
-
-      const areCustomModelsDisabled = newModelList.every(
-        (model) => model.disabled
-      );
-      setCustomModelsDisabled(areCustomModelsDisabled);
+      setModelList([]);
     };
 
     initializeModelList();
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [setIsOpen]);
+
   const handleModelSelect = (model) => {
     if (!useInput) return;
     setSelectedModel(model.id);
-    setSelectedModelProvider(model.provider);
-    setSelectedModelIsSupportsImage(model.supportsImage || false);
     setIsOpen(false);
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       {isOpen && (
         <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 w-[200px] overflow-hidden">
           <div className="py-2">
-            {/* ShareAI 模型组 */}
             <ModelGroup
-              title="🦜 ShareAI"
-              models={Object.values(AI_MODELS)}
+              title="By shareAI"
+              models={Object.values(AI_MODELS2)}
               selectedModel={selectedModel}
               selectedModelProvider={selectedModelProvider}
               useInput={useInput}
               onModelSelect={handleModelSelect}
-            />
-
-            {/* DeepSeek 模型组 */}
-            <ModelGroup
-              title="🤖 DeepSeek"
-              models={modelList.filter(
-                (model) => model.provider === "deepseek"
-              )}
-              selectedModel={selectedModel}
-              selectedModelProvider={selectedModelProvider}
-              onModelSelect={handleModelSelect}
-            />
-
-            {/* Claude 模型组 */}
-            <ModelGroup
-              title="🌟 Claude"
-              models={modelList.filter((model) => model.provider === "claude")}
-              selectedModel={selectedModel}
-              selectedModelProvider={selectedModelProvider}
-              onModelSelect={handleModelSelect}
-            />
-
-            {/* OpenAI 模型组 */}
-            <ModelGroup
-              title="✨ OpenAI"
-              models={modelList.filter((model) => model.provider === "openai")}
-              selectedModel={selectedModel}
-              selectedModelProvider={selectedModelProvider}
-              onModelSelect={handleModelSelect}
-            />
-
-            {/* Ollama 模型组 */}
-            <ModelGroup
-              title="🚀 Ollama"
-              models={modelList.filter((model) => model.provider === "ollama")}
-              selectedModel={selectedModel}
-              selectedModelProvider={selectedModelProvider}
-              onModelSelect={handleModelSelect}
-            />
-
-            {/* LMStudio 模型组 */}
-            <ModelGroup
-              title="🔧 LMStudio"
-              models={modelList.filter(
-                (model) => model.provider === "lmstudio"
-              )}
-              selectedModel={selectedModel}
-              selectedModelProvider={selectedModelProvider}
-              onModelSelect={handleModelSelect}
-            />
-
-            {/* 自定义模型组 */}
-            <ModelGroup
-              title="⚙️ 自定义模型"
-              models={modelList.filter((model) => model.provider === "custom")}
-              selectedModel={selectedModel}
-              selectedModelProvider={selectedModelProvider}
-              onModelSelect={handleModelSelect}
-              customModelsDisabled={customModelsDisabled}
-              onConfigureClick={() => setActivatePage(5)}
             />
           </div>
         </div>
@@ -179,8 +63,8 @@ const ModelSelector = ({
         onClick={() => setIsOpen(!isOpen)}
         className="mt-1 ml-1 flex items-center px-3 py-2
           cursor-pointer w-[200px] rounded-xl 
-          bg-gradient-to-r from-indigo-500 to-purple-500
-          hover:from-indigo-600 hover:to-purple-600
+           text-white bg-indigo-500 hover:bg-indigo-400
+          border border-indigo-300
           active:scale-[0.98] transition-all duration-200
           shadow-sm hover:shadow-md"
       >
@@ -201,14 +85,12 @@ const ModelGroup = ({
   selectedModelProvider,
   onModelSelect,
   useInput = true,
-  customModelsDisabled = false,
-  onConfigureClick,
 }) => {
   // 过滤出未禁用的模型
   const enabledModels = models.filter((model) => !model.disabled);
 
   // 如果没有启用的模型且不是自定义模型组，则不显示整个组
-  if (enabledModels.length === 0 && !customModelsDisabled) return null;
+  if (enabledModels.length === 0) return null;
 
   return (
     <>
@@ -218,42 +100,33 @@ const ModelGroup = ({
         </span>
       </div>
 
-      {customModelsDisabled ? (
+      {enabledModels.map((model) => (
         <div
-          className="px-4 py-2 text-sm transition-all duration-200
-                    hover:bg-indigo-50 flex items-center justify-between
-                    cursor-pointer text-indigo-600 group"
-          onClick={onConfigureClick}
+          key={model.id}
+          className={`px-4 py-2 text-sm transition-all duration-200
+                    hover:bg-indigo-50 flex items-center justify-between group
+                    ${
+                      !useInput
+                        ? "cursor-not-allowed opacity-50"
+                        : "cursor-pointer"
+                    }
+                    ${
+                      selectedModel === model.id &&
+                      selectedModelProvider === model.provider
+                        ? "text-indigo-600 bg-indigo-50"
+                        : "text-gray-600"
+                    }`}
+          onClick={() => onModelSelect(model)}
         >
-          <span className="group-hover:text-indigo-600 flex items-center">
-            去配置模型密钥
-            <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">
-              未配置
-            </span>
-          </span>
-        </div>
-      ) : (
-        enabledModels.map((model) => (
-          <div
-            key={model.id}
-            className={`px-4 py-2 text-sm transition-all duration-200
-                      hover:bg-indigo-50 flex items-center justify-between group
-                      ${!useInput ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
-                      ${selectedModel === model.id && selectedModelProvider === model.provider
-                          ? "text-indigo-600 bg-indigo-50"
-                          : "text-gray-600"
-                      }`}
-            onClick={() => onModelSelect(model)}
-          >
-            <span className="group-hover:text-indigo-600 pl-4">{model.id}</span>
-            {selectedModel === model.id && selectedModelProvider === model.provider && (
+          <span className="group-hover:text-indigo-600 pl-4">{model.id}</span>
+          {selectedModel === model.id &&
+            selectedModelProvider === model.provider && (
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
             )}
-          </div>
-        ))
-      )}
+        </div>
+      ))}
     </>
   );
 };
 
-export { ModelSelector };
+export { ModelSelector2 };

@@ -18,26 +18,22 @@ import {
   getLastUpdateCheck,
   setVersion,
 } from "./storage.js";
-// 存储每个标签页的状态
-const tabStates = new Map();
 
+// 合并后的安装事件监听器
 chrome.runtime.onInstalled.addListener(async function (details) {
-  if (details.reason === "install") {
-    chrome.tabs.create({
-      url: chrome.runtime.getURL("welcome.html"),
-      active: true,
-    });
+  if (details.reason === "install" || details.reason === "update") {
+    // 处理欢迎页面和版本更新
+    if (details.reason === "install") {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("welcome.html"),
+        active: true,
+      });
+    }
+
     const manifest = chrome.runtime.getManifest();
     await setLastUpdateCheck(new Date().getTime());
-    if (details.reason === "install") {
-      await setVersion(manifest.version);
-    } else if (details.reason === "update") {
-      await setVersion(manifest.version);
-    }
+    await setVersion(manifest.version);
   }
-  chrome.tabs.executeScript({
-    file: 'inject.js',
-  });
 });
 
 async function initializeStorage() {
@@ -45,6 +41,8 @@ async function initializeStorage() {
   await setItem("failedCount", 0);
   await setItem("progress", 0);
   await setItem("hasError", false);
+  await setItem("pageTitles", []);
+  await setItem("taskList", []);
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -52,30 +50,36 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 async function processChunks(chunks, token) {
-  const totalChunkNumber = chunks.length;
+  const MAX_CONCURRENT = 5;
+  const totalUrls = chunks.flat();
   let successCount = 0;
   let failedCount = 0;
+  let processedCount = 0;
 
-  try {
-    for (let i = 0; i < totalChunkNumber; i++) {
-      const chunk = chunks[i];
-      const urls = chunk.map((item) =>
-        typeof item === "object" ? item.url : item
-      );
+  const processQueue = async (urls, activePromises = new Set()) => {
+    if (urls.length === 0 && activePromises.size === 0) {
+      return;
+    }
 
-      for (const url of urls) {
+    while (activePromises.size < MAX_CONCURRENT && urls.length > 0) {
+      const item = urls.shift();
+      const url = typeof item === "object" ? item.url : item;
+
+      const promise = (async () => {
         try {
+          // 检查URL是否已经存在
+          const taskList = (await getItem("taskList")) || [];
+          const isUrlExists = taskList.some((task) => task.url === url);
+
+          if (isUrlExists) {
+            console.log(`URL已存在，跳过处理: ${url}`);
+            processedCount++;
+            return;
+          }
+
           const pageData = await fetchPageContent(url);
+          const result = await sendToBackend({ ...pageData, url }, token);
 
-          const result = await sendToBackend(
-            {
-              ...pageData,
-              url,
-            },
-            token
-          );
-
-          // 保存任务信息
           const newTask = {
             url,
             title: pageData.title,
@@ -83,8 +87,13 @@ async function processChunks(chunks, token) {
             taskId: result.data.task_id,
             createdAt: new Date().toISOString(),
           };
-          const existingTaskList = (await getItem("taskList")) || [];
-          await setItem("taskList", [newTask, ...existingTaskList]);
+
+          const existingTitles = await getItem("pageTitles");
+
+          await Promise.all([
+            setItem("taskList", [newTask, ...(taskList || [])]),
+            setItem("pageTitles", [...(existingTitles || []), pageData.title]),
+          ]);
 
           successCount++;
           await setItem("successCount", successCount);
@@ -92,15 +101,39 @@ async function processChunks(chunks, token) {
           console.error(`处理 URL 失败: ${url}`, error);
           failedCount++;
           await setItem("failedCount", failedCount);
+        } finally {
+          processedCount++;
+          const progress = Math.round(
+            (processedCount / totalUrls.length) * 100
+          );
+          await setItem("progress", progress);
+          activePromises.delete(promise);
         }
-      }
+      })();
 
-      const progressPercentage = Math.round(((i + 1) / totalChunkNumber) * 100);
-      await setItem("progress", progressPercentage);
+      activePromises.add(promise);
     }
+
+    if (activePromises.size > 0) {
+      await Promise.race(activePromises);
+      // 递归处理队列
+      await processQueue(urls, activePromises);
+    }
+  };
+
+  try {
+    await processQueue(totalUrls);
   } finally {
-    // 只有在所有处理完成后，才设置 isProcessing 为 false
-    await setItem("isProcessing", false);
+    await Promise.all([
+      setItem("successCount", successCount),
+      setItem("failedCount", failedCount),
+      setItem("isProcessing", false),
+    ]);
+
+    chrome.runtime.sendMessage({
+      type: "BOOKMARKS_PROCESS_COMPLETE",
+      payload: { successCount, failedCount },
+    });
   }
 }
 
@@ -272,24 +305,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const tab = sender.tab;
         const { x, y, width, height, devicePixelRatio } = request.payload;
 
-        // 捕获整个可见区域
-        const dataUrl = await chrome.tabs.captureVisibleTab(null, {
+        const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
           format: "png",
         });
 
-        // 创建离屏 canvas
         const offscreenCanvas = new OffscreenCanvas(
           width * devicePixelRatio,
           height * devicePixelRatio
         );
         const ctx = offscreenCanvas.getContext("2d");
 
-        // 创建位图
         const response = await fetch(dataUrl);
         const blob = await response.blob();
         const bitmap = await createImageBitmap(blob);
 
-        // 裁剪指定区域
         ctx.drawImage(
           bitmap,
           x * devicePixelRatio,
@@ -302,25 +331,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           height * devicePixelRatio
         );
 
-        // 转换为 blob
         const croppedBlob = await offscreenCanvas.convertToBlob({
           type: "image/png",
         });
 
-        // 转换为 base64
         const reader = new FileReader();
         reader.readAsDataURL(croppedBlob);
         reader.onloadend = () => {
-          // 发送消息给 content script
           chrome.tabs.sendMessage(tab.id, {
             type: "SCREENSHOT_CAPTURED",
             payload: {
               dataUrl: reader.result,
             },
           });
+
+          chrome.runtime.sendMessage({
+            type: "SCREENSHOT_CAPTURED",
+            payload: {
+              dataUrl: reader.result,
+            },
+          });
         };
+
+        sendResponse({ success: true });
       } catch (error) {
         console.error("截图失败:", error);
+        sendResponse({ success: false, error: error.message });
       }
     })();
     return true;
@@ -330,16 +366,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function extractPageContent(url) {
   try {
     if (url.startsWith("chrome://") || url.startsWith("chrome-extension://")) {
-      console.log("不支持获取插件页面内容:", url);
       return { url, content: "" };
     }
 
-    console.log("正在创建新标签页:", url);
     const tab = await chrome.tabs.create({
       url,
       active: false,
     });
-    console.log("标签页已创建:", tab.id);
 
     // 创建一个超时 Promise
     const timeout = new Promise((_, reject) => {
@@ -350,7 +383,6 @@ async function extractPageContent(url) {
     const pageLoad = new Promise((resolve) => {
       chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
         if (tabId === tab.id && info.status === "complete") {
-          console.log("页面加载完成:", tab.id);
           chrome.tabs.onUpdated.removeListener(listener);
           resolve();
         }
@@ -364,7 +396,6 @@ async function extractPageContent(url) {
       // 确保页面完全加载后再执行脚本
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      console.log("开始执行内容提取:", tab.id);
       const content = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: () => {
@@ -389,8 +420,6 @@ async function extractPageContent(url) {
       console.error(`页面处理失败: ${error.message}`);
       return { url, content: "" };
     } finally {
-      // 无论成功还是失败，都确保关闭标签页
-      console.log("准备关闭标签页:", tab.id);
       await chrome.tabs.remove(tab.id);
     }
   } catch (error) {
@@ -439,6 +468,15 @@ function compareVersions(v1, v2) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "checkUpdate") {
     (async () => {
+      const lastUpdateCheck = await getLastUpdateCheck();
+      const now = new Date().getTime();
+      if (now - lastUpdateCheck < 24 * 60 * 60 * 1000) {
+        sendResponse({
+          updateAvailable: false,
+        });
+      } else {
+        await setLastUpdateCheck(now);
+      }
       try {
         const currentVersion = chrome.runtime.getManifest().version;
         const response = await fetch(
@@ -470,6 +508,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }
     })();
-    return true; // 保持消息通道开放以支持异步响应
+    return true;
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "refreshAllTabs") {
+    (async () => {
+      try {
+        const tabs = await chrome.tabs.query({});
+
+        const refreshableTabs = tabs.filter(
+          (tab) =>
+            !tab.url.startsWith("chrome://") &&
+            !tab.url.startsWith("chrome-extension://") &&
+            !tab.url.startsWith("edge://") &&
+            !tab.url.startsWith("about:") &&
+            !tab.url.startsWith("https://www.zima.pet/")
+        );
+
+        await Promise.all(
+          refreshableTabs.map((tab) =>
+            chrome.tabs.reload(tab.id, { bypassCache: message.bypassCache })
+          )
+        );
+
+        sendResponse({
+          success: true,
+          refreshedCount: refreshableTabs.length,
+        });
+      } catch (error) {
+        console.error("刷新标签页时出错:", error);
+        sendResponse({
+          success: false,
+          error: error.message,
+        });
+      }
+    })();
+    return true;
   }
 });

@@ -30,14 +30,47 @@ const fetchRelatedQuestions = async (content) => {
     body: JSON.stringify({
       messages: [buildSystemMessage(), { role: "user", content }],
       model: "gpt-4o-mini",
+      stream: true,
     }),
   });
 
-  const data = await response.json();
-  return (data?.choices?.[0]?.message?.content || "")
-    .split("\n")
-    .map((q) => q.trim())
-    .filter((q) => q.length > 0);
+  if (!response.ok) throw new Error('请求失败');
+  
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullContent = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content || '';
+            fullContent += content;
+          } catch (e) {
+            console.error('解析数据失败:', e);
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return fullContent
+    .split('\n')
+    .map(q => q.trim())
+    .filter(q => q.length > 0);
 };
 
 export const useRelatedQuestions = ({

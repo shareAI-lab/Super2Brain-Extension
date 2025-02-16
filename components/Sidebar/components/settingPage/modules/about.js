@@ -1,4 +1,4 @@
-import { QRCodeImage } from "./qrcode";
+import { shareAi } from "./shareAI";
 import { Mail } from "lucide-react";
 
 const About = () => {
@@ -25,7 +25,7 @@ const About = () => {
 
       <div className="flex flex-col items-center space-y-8">
         <img
-          src={QRCodeImage}
+          src={shareAi}
           alt="shareAI二维码"
           className="w-64 h-64 object-cover"
         />

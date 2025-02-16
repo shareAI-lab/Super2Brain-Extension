@@ -1,4 +1,5 @@
 let isInitialized = false;
+let screenshotCallback = null;
 
 async function initializeContentScript() {
   if (isInitialized) return;
@@ -11,18 +12,22 @@ async function initializeContentScript() {
       type: "MARKDOWN_CONTENT",
       payload: markdown,
     });
+    const currentContentMarkDown = await extractMarkdown(window.location.href);
+    chrome.runtime.sendMessage({
+      type: "CURRENT_CONTENT_MARKDOWN",
+      payload: currentContentMarkDown,
+    });
   } catch (error) {
     console.error("❌ 初始化失败:", error);
   }
 
-  // URL 变化监听
   const observer = new MutationObserver(async () => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       try {
         const markdown = await extractMarkdown(location.href);
         chrome.runtime.sendMessage({
-          type: "MARKDOWN_CONTENT",
+          type: "CURRENT_CONTENT_MARKDOWN",
           payload: markdown,
         });
       } catch (error) {
@@ -64,6 +69,21 @@ async function initializeContentScript() {
           sendResponse({ status: "error", error: error.message });
         }
         return true;
+      } else if (message.type === "GET_CURRENT_CONTENT_MARKDOWN") {
+        try {
+          await ensureDependencies();
+          const currentContentMarkDown = await extractMarkdown(
+            message.url || window.location.href
+          );
+          chrome.runtime.sendMessage({
+            type: "CURRENT_CONTENT_MARKDOWN",
+            payload: currentContentMarkDown,
+          });
+          sendResponse({ status: "success" });
+        } catch (error) {
+          console.error("处理内容失败:", error);
+          sendResponse({ status: "error", error: error.message });
+        }
       }
     }
   );
@@ -91,19 +111,24 @@ async function ensureDependencies() {
 // 初始化
 initializeContentScript();
 
+// 修改 extractMarkdown 函数以支持外部 URL
 async function extractMarkdown(url) {
   try {
     let documentToProcess;
 
+    // 这是正确的逻辑：
     if (url === window.location.href) {
+      // 如果是当前页面，直接使用当前 document
       documentToProcess = document.cloneNode(true);
     } else {
+      // 如果是其他页面，需要 fetch 获取内容
       const response = await fetch(url);
       const html = await response.text();
       const parser = new DOMParser();
       documentToProcess = parser.parseFromString(html, "text/html");
     }
 
+    // 获取页面基础信息
     const pageContent = {
       title: documentToProcess.title || "无标题",
       url: url,
@@ -151,7 +176,6 @@ async function extractMarkdown(url) {
   }
 }
 
-// 添加依赖注入函数
 async function injectDependencies() {
   const dependencies = {
     turndown: "https://unpkg.com/turndown/dist/turndown.js",
@@ -172,7 +196,14 @@ async function injectDependencies() {
 }
 
 function createScreenshotUI() {
+  // 确保不会重复创建
+  const existingOverlay = document.querySelector("#screenshot-overlay");
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
+
   const overlay = document.createElement("div");
+  overlay.id = "screenshot-overlay";
   overlay.style.cssText = `
     position: fixed;
     top: 0;
@@ -263,21 +294,29 @@ function createScreenshotUI() {
     buttonContainer.style.display = "flex";
   });
 
+  // 修改确认按钮点击事件
   confirmButton.addEventListener("click", async () => {
     const rect = selection.getBoundingClientRect();
-    chrome.runtime.sendMessage({
-      type: "CAPTURE_SELECTED_AREA",
-      payload: {
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
-        devicePixelRatio: window.devicePixelRatio,
-      },
-    });
-    document.body.removeChild(overlay);
+
+    try {
+      chrome.runtime.sendMessage({
+        type: "CAPTURE_SELECTED_AREA",
+        payload: {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          devicePixelRatio: window.devicePixelRatio,
+        },
+      });
+    } catch (error) {
+      console.error("发送截图请求失败:", error);
+    } finally {
+      document.body.removeChild(overlay);
+    }
   });
 
+  // 取消按钮点击事件
   cancelButton.addEventListener("click", () => {
     document.body.removeChild(overlay);
   });
@@ -290,16 +329,19 @@ function createScreenshotUI() {
   document.body.appendChild(overlay);
 }
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === "START_SCREENSHOT") {
+// 确保消息监听器正确注册
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "START_SCREENSHOT") {
     createScreenshotUI();
+    sendResponse({ success: true });
+    return true;
   }
-  // 添加截图完成的消息处理
-  if (request.type === "SCREENSHOT_CAPTURED") {
-    // 将消息转发到 sidebar
-    chrome.runtime.sendMessage({
-      type: "SCREENSHOT_CAPTURED",
-      payload: request.payload,
-    });
+
+  if (message.type === "SCREENSHOT_CAPTURED") {
+    if (screenshotCallback) {
+      screenshotCallback(message.payload.dataUrl);
+      screenshotCallback = null;
+    }
+    return true;
   }
 });

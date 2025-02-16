@@ -1,19 +1,11 @@
-import {
-  Send,
-  Loader2,
-  ChevronUp,
-  ChevronDown,
-  Brain,
-  Check,
-  Menu,
-} from "lucide-react";
-import { Tooltip } from "react-tooltip";
+import { Loader2, ChevronUp, ChevronDown, Check, XCircle } from "lucide-react";
 import { getResponse } from "../../core/agent.js";
 import { marked } from "marked";
 import { PlaceHolder } from "./modules/placeHolder";
 import { TypeWriter } from "./modules/TypeWriter";
 import { useState, useRef, useEffect } from "react";
-import { OptionsMenu } from "./modules/OptionsMenu";
+import { ActionButtons } from "./modules/actionButton";
+import { InputArea } from "./modules/inputArea";
 
 const DeepSearch = ({
   query,
@@ -27,11 +19,18 @@ const DeepSearch = ({
   maxDepth,
   setMaxDepth,
   needTime,
+  hasError,
+  setMessages,
+  selectedModel,
+  setSelectedModel,
 }) => {
+  const [showTextArea, setShowTextArea] = useState(true);
   const messagesEndRef = useRef(null);
   const statusBoxRef = useRef(null);
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const [startTime, setStartTime] = useState(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const timerRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -65,15 +64,66 @@ const DeepSearch = ({
     }
   }, [currentStatus, isThinkingCollapsed]);
 
-  const handleModelChange = (event) => {
-    setModelType(parseInt(event.target.value));
+  // 计算经过的时间（秒）
+  const getElapsedTime = () => {
+    if (!startTime) return 0;
+    return Math.floor((currentTime - startTime) / 1000);
   };
+
+  const startTimer = () => {
+    if (timerRef.current) return;
+    setStartTime(Date.now());
+    timerRef.current = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      setStartTime(null);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  };
+
+  useEffect(() => {
+    if (isLoading) {
+      startTimer();
+    } else {
+      stopTimer();
+    }
+
+    return () => stopTimer();
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (Array.isArray(currentStatus) && currentStatus.length > 0) {
+      const scrollToStatusBottom = () => {
+        if (statusBoxRef.current) {
+          const { scrollHeight, clientHeight } = statusBoxRef.current;
+          statusBoxRef.current.scrollTo({
+            top: scrollHeight - clientHeight,
+            behavior: "smooth",
+          });
+        }
+      };
+
+      requestAnimationFrame(scrollToStatusBottom);
+    }
+  }, [currentStatus]);
 
   const handleSendMessage = async () => {
     setIsDeepThingActive(true);
     if (!query.trim() || isLoading) return;
     const question = query;
     setQuery("");
+    setStartTime(null);
     await onSendMessage(question, getResponse);
   };
 
@@ -98,18 +148,37 @@ const DeepSearch = ({
                   <div className="ml-2 flex items-center">
                     {isThinkingCollapsed ? (
                       <>
-                        <ChevronDown className="w-4 h-4" />
-                        <span>收起</span>
+                        <ChevronUp className="w-4 h-4" />
+                        <span>展开</span>
                       </>
                     ) : (
                       <>
-                        <ChevronUp className="w-4 h-4" />
-                        <span>展开</span>
+                        <ChevronDown className="w-4 h-4" />
+                        <span>收起</span>
                       </>
                     )}
                   </div>
                 </div>
-                {!isThinkingCollapsed && (
+                {isThinkingCollapsed ? (
+                  <div className="relative">
+                    <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+                    <div className="text-sm text-gray-500 border-l-2 border-gray-200 pl-3 py-1 sticky bottom-0 bg-white/95 backdrop-blur-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-600 select-none">$</span>
+                        <span className="truncate">{currentStatus[0]}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-400">
+                        {currentStatus.length - 1} 条更多思考步骤...
+                        {needTime &&
+                          !messages[messages.length - 1]?.isComplete && (
+                            <span className="ml-2">
+                              · 预计需要 {needTime} 分钟
+                            </span>
+                          )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                   <>
                     <div
                       ref={statusBoxRef}
@@ -142,34 +211,6 @@ const DeepSearch = ({
                           </li>
                         ))}
                       </ul>
-                    </div>
-                    <div className="mt-4">
-                      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-                        <div className="flex items-center justify-center gap-3">
-                          <svg
-                            className="w-5 h-5 text-blue-500 animate-spin"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeDasharray="1 3"
-                            />
-                          </svg>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-blue-700">
-                              预计需要时间：{needTime || "计算中..."} 分钟
-                            </span>
-                            <span className="text-xs text-blue-600 mt-1">
-                              S2B正在操作你的浏览器进度sendup思考，请不要关闭侧边栏
-                            </span>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </>
                 )}
@@ -226,8 +267,35 @@ const DeepSearch = ({
       </div>
     ));
 
+  // 提取提示卡片为独立组件
+  const ThinkingCard = () => (
+    <div
+      className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100/60 
+      rounded-xl p-4 shadow-sm backdrop-blur-sm"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-indigo-700/90">
+              预计需要时间：{needTime || "计算中..."} 分钟
+              {isLoading && (
+                <span className="text-indigo-500/90 ml-2 font-normal">
+                  (已用时间: {formatTime(getElapsedTime())})
+                </span>
+              )}
+            </span>
+            <span className="text-xs text-indigo-500/80 mt-1.5">
+              S2B正在操作你的浏览器进行深度深度思考，请不要关闭侧边栏
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="w-full h-[calc(100vh-8px)] flex flex-col bg-white rounded-sm">
+    <div className="w-full h-[calc(100vh-8px)] flex flex-col bg-white rounded-l-xl">
       <div className="px-8 py-4">
         <div className="flex flex-col gap-4">
           {messages.length > 0 && (
@@ -236,32 +304,20 @@ const DeepSearch = ({
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
-                    <span>DeepSeek 正在思考中...</span>
+                    <span>S2B正在深度思考中...</span>
+                  </>
+                ) : hasError ? (
+                  <>
+                    <XCircle className="w-5 h-5 text-red-500" />
+                    <span>思考过程出现错误</span>
                   </>
                 ) : (
                   <>
                     <Check className="w-5 h-5 text-green-500" />
-                    <span>思考完成</span>
+                    <span>深度思考搜索完成</span>
                   </>
                 )}
               </h1>
-              <div className="relative">
-                <button
-                  onClick={() => setIsOpen(!isOpen)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                  data-tooltip-id="menu-tooltip"
-                >
-                  <Menu className="w-5 h-5 text-gray-600" />
-                </button>
-                <Tooltip
-                  id="menu-tooltip"
-                  place="left"
-                  style={{ borderRadius: "8px" }}
-                >
-                  菜单
-                </Tooltip>
-                <OptionsMenu isOpen={isOpen} setIsOpen={setIsOpen} content={messages[messages.length - 1].content} />
-              </div>
             </div>
           )}
         </div>
@@ -271,78 +327,36 @@ const DeepSearch = ({
         <div ref={messagesEndRef} />
       </div>
       <div className="flex-shrink-0 p-2">
-        <div className="relative">
-          <div className="flex items-center gap-2 px-2 mb-2">
-            <div className="flex items-center gap-2">
-              <Brain className="w-4 h-4 text-indigo-500" />
-              <span className="text-xs text-gray-600">思考深度</span>
-            </div>
-            <div className="w-32 flex items-center gap-2">
-              <input
-                type="range"
-                min="2"
-                max="6"
-                value={maxDepth}
-                onChange={(e) => setMaxDepth(parseInt(e.target.value))}
-                className="w-24 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+        {!isLoading && (
+          <div className="relative">
+            {messages.length === 0 && (
+              <InputArea
+                selectedModel={selectedModel}
+                setSelectedModel={setSelectedModel}
+                query={query}
+                setQuery={setQuery}
+                maxDepth={maxDepth}
+                setMaxDepth={setMaxDepth}
+                isLoading={isLoading}
+                handleSendMessage={handleSendMessage}
               />
-              <span className="text-xs text-gray-500 min-w-[20px]">
-                {maxDepth}
-              </span>
-            </div>
+            )}
+            {messages.length > 0 && (
+              <ActionButtons
+                setShowTextArea={setShowTextArea}
+                messages={messages}
+                setQuery={setQuery}
+                setMessages={setMessages}
+                setIsDeepThingActive={setIsDeepThingActive}
+              />
+            )}
           </div>
-
-          <div
-            className="relative rounded-md bg-white outline outline-1 -outline-offset-1 outline-gray-300 
-            focus-within:outline focus-within:outline-2 focus-within:-outline-offset-2
-            focus-within:outline-indigo-600"
-          >
-            <textarea
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  !e.nativeEvent.isComposing
-                ) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
-              }}
-              className="block w-full rounded-md bg-white px-3 py-1.5 text-base 
-                text-gray-900 outline-none resize-none h-24
-                placeholder:text-gray-400 sm:text-sm/6"
-              placeholder="请输入您的问题"
-            />
-            <div className="flex items-center justify-end px-2 py-1">
-              <div className="flex gap-2">
-                <button
-                  disabled={!query.trim() || isLoading}
-                  onClick={handleSendMessage}
-                  className={`button-tag-send p-2 rounded-xl
-                  flex items-center justify-center
-                  transition-all duration-200
-                  ${
-                    !query.trim() || isLoading
-                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      : "bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200"
-                  }
-                  shadow-sm hover:shadow-md`}
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-                <Tooltip
-                  style={{ borderRadius: "8px" }}
-                  anchorSelect=".button-tag-send"
-                  place="top"
-                >
-                  发送
-                </Tooltip>
-              </div>
-            </div>
+        )}
+        {isLoading && (
+          <div className="px-2">
+            <ThinkingCard />
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

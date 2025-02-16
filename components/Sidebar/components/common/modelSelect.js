@@ -11,8 +11,9 @@ import {
   getOpenaiApiKey,
   getCustomConfig,
   getLmstudioModels,
+  getOpenAiUrl,
 } from "../../../../public/storage";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getOllamaModels, getCustomModels } from "../../../../public/storage";
 
 const ModelSelector = ({
@@ -30,6 +31,18 @@ const ModelSelector = ({
 }) => {
   const [modelList, setModelList] = useState([]);
   const [customModelsDisabled, setCustomModelsDisabled] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [setIsOpen]);
 
   useEffect(() => {
     const initializeModelList = async () => {
@@ -40,6 +53,7 @@ const ModelSelector = ({
         ollamaModels,
         customModels,
         lmstudioModels,
+        openaiUrl,
       ] = await Promise.all([
         getDeepSeekApiKey(),
         getClaudeApiKey(),
@@ -47,11 +61,9 @@ const ModelSelector = ({
         getOllamaModels(),
         getCustomModels(),
         getLmstudioModels(),
+        getOpenAiUrl(),
       ]);
-      console.log("customModels", customModels);
       const customConfig = await getCustomConfig();
-      console.log("customConfig", customConfig);
-      console.log("lmstudioModels", lmstudioModels);
       const newModelList = [
         ...Object.values(deepseekModel).map((model) => ({
           ...model,
@@ -99,13 +111,13 @@ const ModelSelector = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       {isOpen && (
         <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 w-[200px] overflow-hidden">
           <div className="py-2">
             {/* ShareAI 模型组 */}
             <ModelGroup
-              title="🦜 ShareAI"
+              title="By shareAI"
               models={Object.values(AI_MODELS)}
               selectedModel={selectedModel}
               selectedModelProvider={selectedModelProvider}
@@ -115,7 +127,7 @@ const ModelSelector = ({
 
             {/* DeepSeek 模型组 */}
             <ModelGroup
-              title="🤖 DeepSeek"
+              title="By DeepSeek"
               models={modelList.filter(
                 (model) => model.provider === "deepseek"
               )}
@@ -126,7 +138,7 @@ const ModelSelector = ({
 
             {/* Claude 模型组 */}
             <ModelGroup
-              title="🌟 Claude"
+              title="By Claude"
               models={modelList.filter((model) => model.provider === "claude")}
               selectedModel={selectedModel}
               selectedModelProvider={selectedModelProvider}
@@ -135,7 +147,7 @@ const ModelSelector = ({
 
             {/* OpenAI 模型组 */}
             <ModelGroup
-              title="✨ OpenAI"
+              title="By OpenAI"
               models={modelList.filter((model) => model.provider === "openai")}
               selectedModel={selectedModel}
               selectedModelProvider={selectedModelProvider}
@@ -144,7 +156,7 @@ const ModelSelector = ({
 
             {/* Ollama 模型组 */}
             <ModelGroup
-              title="🚀 Ollama"
+              title="By Ollama"
               models={modelList.filter((model) => model.provider === "ollama")}
               selectedModel={selectedModel}
               selectedModelProvider={selectedModelProvider}
@@ -153,7 +165,7 @@ const ModelSelector = ({
 
             {/* LMStudio 模型组 */}
             <ModelGroup
-              title="🔧 LMStudio"
+              title="By LMStudio"
               models={modelList.filter(
                 (model) => model.provider === "lmstudio"
               )}
@@ -164,7 +176,7 @@ const ModelSelector = ({
 
             {/* 自定义模型组 */}
             <ModelGroup
-              title="⚙️ 自定义模型"
+              title="自定义模型"
               models={modelList.filter((model) => model.provider === "custom")}
               selectedModel={selectedModel}
               selectedModelProvider={selectedModelProvider}
@@ -179,8 +191,8 @@ const ModelSelector = ({
         onClick={() => setIsOpen(!isOpen)}
         className="mt-1 ml-1 flex items-center px-3 py-2
           cursor-pointer w-[200px] rounded-xl 
-          bg-gradient-to-r from-indigo-500 to-purple-500
-          hover:from-indigo-600 hover:to-purple-600
+           text-white bg-indigo-500 hover:bg-indigo-400
+          border border-indigo-300
           active:scale-[0.98] transition-all duration-200
           shadow-sm hover:shadow-md"
       >
@@ -238,17 +250,24 @@ const ModelGroup = ({
             key={model.id}
             className={`px-4 py-2 text-sm transition-all duration-200
                       hover:bg-indigo-50 flex items-center justify-between group
-                      ${!useInput ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
-                      ${selectedModel === model.id && selectedModelProvider === model.provider
+                      ${
+                        !useInput
+                          ? "cursor-not-allowed opacity-50"
+                          : "cursor-pointer"
+                      }
+                      ${
+                        selectedModel === model.id &&
+                        selectedModelProvider === model.provider
                           ? "text-indigo-600 bg-indigo-50"
                           : "text-gray-600"
                       }`}
             onClick={() => onModelSelect(model)}
           >
             <span className="group-hover:text-indigo-600 pl-4">{model.id}</span>
-            {selectedModel === model.id && selectedModelProvider === model.provider && (
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-            )}
+            {selectedModel === model.id &&
+              selectedModelProvider === model.provider && (
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+              )}
           </div>
         ))
       )}

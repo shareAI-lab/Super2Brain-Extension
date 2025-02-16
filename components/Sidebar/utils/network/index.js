@@ -1,5 +1,6 @@
 import { OpenAI } from "openai";
 import { searchWeb } from "../service";
+import { handleStreamResponse, createStreamRequest } from "./streamUtils";
 
 const openai = new OpenAI({
   apiKey: "sk-OSqhqCm1DoE24Kf0E2796eAeE75b484d9f08CbD779E7870a",
@@ -105,17 +106,28 @@ const buildMessages = (systemPrompt, context, searchResults, query) => [
   { role: "user", content: query },
 ];
 
-const getFinalResponse = async (messages) => {
-  const response = await openai.chat.completions.create({
+const getFinalResponse = async (messages, onProgress) => {
+  const response = await createStreamRequest("/text/v1/chat/completions", {
     model: "gpt-4o-mini",
     messages,
   });
 
-  // 检查是否有function calling
-  const hasFunctionCall = response.choices[0].message.tool_calls?.length > 0;
+  if (!response.ok) {
+    throw new Error(`API请求失败: ${response.status}`);
+  }
+
+  let streamContent = "";
+  const content = await handleStreamResponse(response.body.getReader(), (chunk) => {
+    streamContent += chunk;
+    onProgress?.({
+      stage: 3,
+      response: streamContent,
+    });
+  });
+
   return {
-    content: response.choices[0].message.content,
-    hasFunctionCall,
+    content,
+    hasFunctionCall: false, // 流式响应暂不支持function calling
   };
 };
 
@@ -129,27 +141,19 @@ const getSystemPrompt = () => {
 };
 
 export const getNetwork = async (query, context = [], onProgress) => {
-  // 首先判断是否需要搜索
   const { needSearch } = await determineSearchNeed(query);
   onProgress?.({ stage: 1 });
 
-  // 获取搜索结果（如果需要的话）
   const searchResults = needSearch ? await searchWeb(query) : "";
-
-  // 构建消息并获取回答
+  
   const messages = buildMessages(
     getSystemPrompt(),
     context,
     searchResults,
     query
   );
-  const { content: response } = await getFinalResponse(messages);
 
-  // 更新进度
-  onProgress?.({
-    stage: needSearch ? 3 : 2,
-    response,
-  });
+  const { content: response } = await getFinalResponse(messages, onProgress);
 
   // 生成相关问题
   const similarQuestions = await generateSimilarQuestions(
@@ -157,7 +161,7 @@ export const getNetwork = async (query, context = [], onProgress) => {
     response,
     onProgress
   );
+  
   onProgress?.({ stage: 4, questions: similarQuestions });
-
   return response;
 };

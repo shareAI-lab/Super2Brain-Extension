@@ -1,0 +1,12 @@
+{
+    "GLM-4": 8,
+    "GLM-4V": 10,
+    "Qwen-Max": 6,
+    "Qwen-Turbo": 3,
+    "Doubao-Pro": 5,
+    "Doubao-Lite": 2,
+    "Claude-3-Opus": 15,
+    "Claude-3.5-Sonnet": 8,
+    "GPT-4O": 12,
+    "GPT-4O-Mini": 6
+}

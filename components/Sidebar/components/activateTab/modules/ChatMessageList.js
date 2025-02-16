@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { marked } from "marked";
 import {
   Bot,
@@ -8,10 +8,23 @@ import {
   Loader2,
   MessageSquare,
   Globe,
+  ChevronRight,
 } from "lucide-react";
 import { Loading } from "../../common/loading";
 
-const MessageContent = ({ content }) => {
+const MessageContent = ({ content, reason_content, messageId }) => {
+  const [expandedStates, setExpandedStates] = useState(new Map());
+
+  const isExpanded = expandedStates.get(messageId) || false;
+
+  const toggleExpand = (id) => {
+    setExpandedStates((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(id, !prev.get(id));
+      return newMap;
+    });
+  };
+
   const commonClassNames = `text-sm break-words leading-relaxed prose prose-sm max-w-none 
     [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:pb-2 [&_h1]:border-b [&_h1]:border-gray-200
     [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-6
@@ -21,37 +34,73 @@ const MessageContent = ({ content }) => {
     [&_h6]:text-sm [&_h6]:font-semibold [&_h6]:mb-2 [&_h6]:mt-3
     dark:[&_h1]:border-gray-700`;
 
-  const renderContent = Array.isArray(content) ? (
-    <div className={commonClassNames}>
-      {content.map((item, idx) => (
-        <div key={idx}>
-          {item.type === "text" && (
+  return (
+    <div className="space-y-3">
+      {reason_content && reason_content.trim() && (
+        <div>
+          <button
+            onClick={() => toggleExpand(messageId)}
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-2 transition-colors duration-200"
+          >
+            <ChevronRight
+              className={`w-4 h-4 transition-transform duration-200 
+                ${isExpanded ? "rotate-90" : ""}`}
+            />
+            <span className="text-sm">思考过程</span>
+          </button>
+
+          {isExpanded && (
             <div
-              dangerouslySetInnerHTML={{
-                __html: marked.parse(item.text, { breaks: true, gfm: true }),
-              }}
-            />
-          )}
-          {item.type === "image_url" && (
-            <img
-              src={item.image_url.url}
-              alt="uploaded"
-              className="max-w-full h-auto"
-            />
+              className="p-3 bg-gray-50 rounded-lg text-sm text-gray-500
+                border border-gray-100 transition-all duration-200"
+            >
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: marked.parse(reason_content, {
+                    breaks: true,
+                    gfm: true,
+                  }),
+                }}
+              />
+            </div>
           )}
         </div>
-      ))}
-    </div>
-  ) : (
-    <div
-      className={commonClassNames}
-      dangerouslySetInnerHTML={{
-        __html: marked.parse(content, { breaks: true, gfm: true }),
-      }}
-    />
-  );
+      )}
 
-  return renderContent;
+      {Array.isArray(content) ? (
+        <div className={commonClassNames}>
+          {content.map((item, idx) => (
+            <div key={idx}>
+              {item.type === "text" && (
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: marked.parse(item.text, {
+                      breaks: true,
+                      gfm: true,
+                    }),
+                  }}
+                />
+              )}
+              {item.type === "image_url" && (
+                <img
+                  src={item.image_url.url}
+                  alt="uploaded"
+                  className="max-w-full h-auto"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div
+          className={commonClassNames}
+          dangerouslySetInnerHTML={{
+            __html: marked.parse(content, { breaks: true, gfm: true }),
+          }}
+        />
+      )}
+    </div>
+  );
 };
 
 export const ChatMessageList = ({
@@ -66,6 +115,13 @@ export const ChatMessageList = ({
   onQuestionClick,
 }) => {
   const [pageTitle, setPageTitle] = useState("");
+  const [thinkingTime, setThinkingTime] = useState(0);
+  const timerRef = useRef(null);
+  const timerMapRef = useRef(new Map());
+  const messageRefs = useRef({});
+  const [prevMessageHeight, setPrevMessageHeight] = useState(0);
+  const messagesEndRef = useRef(null);
+  const [messagesContainerHeight, setMessagesContainerHeight] = useState(0);
 
   const getPageTitle = async () => {
     try {
@@ -95,10 +151,90 @@ export const ChatMessageList = ({
     };
   }, [currentUrl]);
 
+  useEffect(() => {
+    // 清理其他URL的计时器
+    const cleanupTimers = () => {
+      timerMapRef.current.forEach((timer, url) => {
+        if (url !== currentUrl) {
+          clearInterval(timer);
+          timerMapRef.current.delete(url);
+        }
+      });
+    };
+
+    // 处理当前URL的计时器
+    if (isAiThinking) {
+      setThinkingTime(0);
+      const timer = setInterval(() => {
+        setThinkingTime((prev) => prev + 1);
+      }, 1000);
+      timerMapRef.current.set(currentUrl, timer);
+      timerRef.current = timer;
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        timerMapRef.current.delete(currentUrl);
+      }
+    }
+
+    cleanupTimers();
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isAiThinking, currentUrl]);
+
+  useEffect(() => {
+    if (messages.length > 1) {
+      const prevMessageEl = messageRefs.current[messages.length - 2];
+      if (prevMessageEl) {
+        const height = prevMessageEl.getBoundingClientRect().height;
+        setPrevMessageHeight(height);
+        console.log("Previous message height:", height);
+      }
+    }
+  }, [messages]);
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      const container = messagesEndRef.current.parentElement;
+      if (container) {
+        setTimeout(() => {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth'
+          });
+        }, 0);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAiThinking) {
+      const rafId = requestAnimationFrame(() => {
+        scrollToBottom();
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [messages, isAiThinking, scrollToBottom]);
+
+  useEffect(() => {
+    if (messages.length > 1) {
+      const prevMessageEl = messageRefs.current[messages.length - 1];
+      if (prevMessageEl) {
+        const height = prevMessageEl.getBoundingClientRect().height;
+        setMessagesContainerHeight(height);
+      }
+    }
+  }, [messages]);
+
   const renderRelatedQuestions = () => {
     return (
-      <div className="absolute bottom-[40px] left-4 z-10">
-        <div className="text-base font-medium text-gray-700 mb-3 flex items-center">
+      <div className="absolute bottom-[10px] left-4 z-10">
+        <div className="text-base font-medium text-gray-700 mb-2 flex items-center">
           <MessageSquare className="w-4 h-4 mr-2" />
           猜你想问
         </div>
@@ -111,8 +247,8 @@ export const ChatMessageList = ({
             <div
               key={index}
               onClick={() => onQuestionClick(question.replace(/^\d+\.\s*/, ""))}
-              className="flex items-center gap-2 text-sm text-gray-600 mb-2 
-                px-4 py-2 rounded-lg bg-gray-50 border border-gray-100
+              className="flex items-center gap-2 text-sm text-gray-600 mb-1.5
+                px-4 py-1.5 rounded-lg bg-gray-50 border border-gray-100
                 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 
                 hover:shadow-sm transform hover:-translate-y-0.5
                 cursor-pointer transition-all duration-200"
@@ -148,7 +284,7 @@ export const ChatMessageList = ({
           >
             <Globe className="w-4 h-4 text-indigo-500 shrink-0" />
             <span className="bg-gradient-to-r from-gray-700 to-gray-600 bg-clip-text text-transparent truncate">
-              {truncateTitle(pageTitle)}
+              当前页面：{truncateTitle(pageTitle)}
             </span>
           </div>
         </div>
@@ -183,94 +319,126 @@ export const ChatMessageList = ({
     );
   };
 
+  const renderThinkingState = () => (
+    <div
+      style={{
+        height:
+          messages.length === 1
+            ? "auto"
+            : `calc(100vh - ${messagesContainerHeight + 300}px)`,
+      }}
+    >
+      <div className="flex justify-start bg-transparent">
+        <div className="relative w-full rounded-xl shadow-sm bg-white border border-gray-100 flex-0">
+          <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white p-3">
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-indigo-600" />
+              <span className="font-medium text-indigo-600">super2brain</span>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="flex items-center space-x-2">
+              <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+              <span className="text-sm text-gray-500">
+                正在思考中 ({thinkingTime}s)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 relative bg-white rounded-xl flex flex-col h-full">
+    <div
+      className="flex-1 overflow-y-auto p-4 relative bg-white rounded-xl flex flex-col h-full scroll-smooth"
+      style={{ 
+        maxHeight: messages.length <= 2 ? "100%" : "calc(100vh - 200px)" 
+      }}
+    >
       {renderPageTitle()}
       {messages.length === 0 ? (
         renderEmptyState()
       ) : (
         <div className="space-y-6">
-          {messages.map((msg, index) => (
-            <div
-              key={index}
-              className={`flex ${
-                msg.role === "assistant" ? "justify-start" : "justify-end"
-              }`}
-            >
+          {messages.map((msg, index) => {
+            const isLastMessage = index === messages.length - 1;
+            const isAssistant = msg.role === "assistant";
+
+            return (
               <div
-                className={`relative rounded-xl shadow-sm
-                  ${
-                    msg.role === "assistant"
-                      ? "w-full bg-white border border-gray-100"
-                      : "max-w-[80%] bg-blue-100 inline-block"
-                  }`}
+                key={index}
+                ref={(el) => (messageRefs.current[index] = el)}
+                className={`${
+                  isLastMessage && isAssistant ? "min-h-[300px]" : ""
+                } transition-all duration-200`}
+                style={
+                  isLastMessage && isAssistant && messages.length > 2
+                    ? {
+                        height: `calc(100vh - ${prevMessageHeight + 306}px)`,
+                      }
+                    : {}
+                }
               >
-                {msg.role === "assistant" && (
-                  <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white p-3">
-                    <div className="flex items-center gap-2">
-                      <Bot className="w-5 h-5 text-indigo-600" />
-                      <span className="font-medium text-indigo-600">
-                        {msg.model}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className={msg.role === "assistant" ? "p-4" : "px-2"}>
-                  <MessageContent content={msg.content} />
-
-                  {msg.role === "assistant" && (
-                    <div className="flex justify-between items-start mt-2">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => onCopy(msg.content, index)}
-                          className="p-1 hover:bg-gray-100 rounded-md"
-                          title="复制内容"
-                        >
-                          {copiedMessageId === index ? (
-                            <Check className="w-4 h-4 text-green-500" />
-                          ) : (
-                            <Copy className="w-4 h-4 text-gray-500" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => onRetry(index)}
-                          className="p-1 hover:bg-gray-100 rounded-md"
-                          title="重新生成"
-                          disabled={isAiThinking}
-                        >
-                          <RefreshCw className="w-4 h-4 text-gray-500" />
-                        </button>
+                <div
+                  className={`flex ${
+                    isAssistant ? "justify-start" : "justify-end"
+                  }`}
+                >
+                  <div
+                    className={`relative rounded-xl shadow-sm
+                    ${
+                      isAssistant
+                        ? "w-full bg-white border border-gray-100"
+                        : "max-w-[80%] bg-blue-100 inline-block"
+                    }`}
+                  >
+                    {isAssistant && (
+                      <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white p-3">
+                        <div className="flex items-center gap-2">
+                          <Bot className="w-5 h-5 text-indigo-600" />
+                          <span className="font-medium text-indigo-600">
+                            {msg.model}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+                    )}
 
-          {isAiThinking && (
-            <div className="flex justify-start">
-              <div className="relative w-full rounded-xl shadow-sm bg-white border border-gray-100">
-                <div className="border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white p-3">
-                  <div className="flex items-center gap-2">
-                    <Bot className="w-5 h-5 text-indigo-600" />
-                    <span className="font-medium text-indigo-600">
-                      super2brain
-                    </span>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                    <span className="text-sm text-gray-500">正在思考中...</span>
+                    <div className={isAssistant ? "p-4" : "px-2"}>
+                      <MessageContent
+                        content={msg.content}
+                        reason_content={msg.reason_content}
+                        messageId={index}
+                      />
+
+                      {isAssistant && (
+                        <div className="flex justify-between items-start">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => onCopy(msg.content, index)}
+                              className="p-1 hover:bg-gray-100 rounded-md"
+                              title="复制内容"
+                            >
+                              {copiedMessageId === index ? (
+                                <Check className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <Copy className="w-4 h-4 text-gray-500" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })}
+
+          {isAiThinking && renderThinkingState()}
         </div>
       )}
+      <div ref={messagesEndRef} style={{ height: "1px" }} />
     </div>
   );
 };

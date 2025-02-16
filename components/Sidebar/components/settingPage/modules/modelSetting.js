@@ -19,6 +19,8 @@ import {
   setCustomModelIds,
   getCustomModelIds,
   setCustomConfig,
+  setOpenAiUrl,
+  getOpenAiUrl,
 } from "../../../../../public/storage";
 import { Tooltip } from "react-tooltip";
 
@@ -71,6 +73,11 @@ const ModelSettings = ({
   modelList,
   setModelList,
 }) => {
+  if (!API_INFO[modelKey]) {
+    console.error(`未找到模型配置信息: ${modelKey}`);
+    return null;
+  }
+
   const modelName = MODEL_NAMES[modelKey] || modelKey;
 
   const [verifyStatuses, setVerifyStatuses] = useState({
@@ -124,8 +131,14 @@ const ModelSettings = ({
           if (isValid) await setClaudeApiKey(apiKey);
           break;
         case "openai":
-          isValid = await checkOpenAiApiKey(apiKey);
-          if (isValid) await setOpenaiApiKey(apiKey);
+          isValid = await checkOpenAiApiKey(apiKey, settings[modelKey].url);
+          if (isValid) {
+            await setOpenaiApiKey(apiKey);
+            if (settings[modelKey].url) {
+              await setOpenAiUrl(settings[modelKey].url);
+            }
+          }
+
           break;
         case "ollama":
           isValid = await checkOllamaConnection(settings[modelKey].url, apiKey);
@@ -146,8 +159,6 @@ const ModelSettings = ({
             settings[modelKey].url,
             apiKey
           );
-          console.log("url", url);
-          console.log("apiKey", apiKey);
           await setCustomConfig(settings[modelKey].url, apiKey);
           setFailedModels(failedResults);
           const updatedModelIds = await getCustomModelIds();
@@ -291,6 +302,15 @@ const ModelSettings = ({
     await setCustomModelIds(newModelIds);
   };
 
+  const handleAddModelId = async () => {
+    if (modelIdInput.trim()) {
+      const newModelIds = [...(modelList || []), modelIdInput.trim()];
+      setModelIdInput("");
+      setModelList(newModelIds);
+      await setCustomModelIds(newModelIds);
+    }
+  };
+
   if (modelKey === "ollama" || modelKey === "lmstudio") {
     return (
       <div className="bg-white rounded-xl p-6 mb-6 shadow-sm hover:shadow-lg transition-all duration-200 border border-gray-100">
@@ -425,33 +445,43 @@ const ModelSettings = ({
               <label className="block text-xs font-medium text-gray-700 mb-2">
                 模型ID
               </label>
-              <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500">
-                {modelList?.map((modelId, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 text-sm"
+              <div className="space-y-3">
+                {modelList?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg">
+                    {modelList.map((modelId, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 text-sm"
+                      >
+                        {modelId}
+                        <button
+                          onClick={() => removeModelId(index)}
+                          className="hover:text-indigo-900 focus:outline-none"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                    placeholder="输入模型ID（例如: gpt-4-turbo）"
+                    value={modelIdInput}
+                    onChange={(e) => setModelIdInput(e.target.value)}
+                    onKeyDown={handleModelIdKeyDown}
+                  />
+                  <button
+                    onClick={handleAddModelId}
+                    disabled={!modelIdInput.trim()}
+                    className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-500 active:bg-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {modelId}
-                    <button
-                      onClick={() => removeModelId(index)}
-                      className="hover:text-indigo-900 focus:outline-none"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  className="flex-1 min-w-[120px] border-0 bg-transparent p-1 text-sm focus:outline-none"
-                  placeholder={
-                    settings.custom?.modelIds?.length
-                      ? ""
-                      : "输入模型ID后按回车添加（例如: gpt-4-turbo）"
-                  }
-                  value={modelIdInput}
-                  onChange={(e) => setModelIdInput(e.target.value)}
-                  onKeyDown={handleModelIdKeyDown}
-                />
+                    添加
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -528,6 +558,107 @@ const ModelSettings = ({
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (modelKey === "openai") {
+    return (
+      <div className="bg-white rounded-xl p-6 mb-6 shadow-sm hover:shadow-lg transition-all duration-200 border border-gray-100">
+        <div className="flex items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <span className="text-indigo-600 text-sm font-bold">O</span>
+            </div>
+            {modelName}配置
+          </h3>
+        </div>
+
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            {API_INFO[modelKey].description}
+            <a
+              href={API_INFO[modelKey].link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-600 hover:text-indigo-500 ml-2 font-medium inline-flex items-center group"
+            >
+              获取API Key
+              <span className="ml-1 group-hover:translate-x-0.5 transition-transform">
+                →
+              </span>
+            </a>
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                API Key
+              </label>
+              <input
+                type="password"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                placeholder="输入 OpenAI API Key"
+                value={settings[modelKey].apiKey}
+                onChange={handleChange(modelKey, "apiKey")}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                API 代理（可选）
+              </label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                placeholder="例如: https://api.example.com/v1"
+                value={settings[modelKey].url || ""}
+                onChange={handleChange(modelKey, "url")}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                如果需要使用代理访问 OpenAI API，请在此输入代理地址
+              </p>
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() =>
+                  verifyApiKey(
+                    settings[modelKey].apiKey,
+                    settings[modelKey].url
+                  )
+                }
+                disabled={isVerifying}
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-500 active:bg-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isVerifying ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>保存中...</span>
+                  </div>
+                ) : (
+                  "保存"
+                )}
+              </button>
+            </div>
+          </div>
+
+          {verifyStatuses[modelKey].status && (
+            <div className="mt-2">
+              {verifyStatuses[modelKey].status === "success" ? (
+                <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                  {verifyStatuses[modelKey].message}
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  {verifyStatuses[modelKey].message}
+                </span>
+              )}
             </div>
           )}
         </div>

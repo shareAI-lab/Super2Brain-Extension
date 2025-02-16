@@ -1,12 +1,11 @@
 {
 	"manifest_version": 3,
 	"name": "Super2Brain",
-	"short_name": "Super2Brain",
+	"short_name": "Super2Brain - aid your thinking",
 	"version": "1.0.0",
-	"description": "Super2Brain",
+	"description": "不仅网页亮点速览，S2B是一款能自动操控浏览器，让AI批量阅读整理web资料，支持知识库对话、 OpenAI Deep Research 、DeepSeek R1 的强大浏览器插件。",
 	"author": "LiM",
 	"homepage_url": "https://x.super2brain.com",
-	"update_url": "https://extension-update.oss-cn-beijing.aliyuncs.com/update.xml",
 	"icons": {
 		"16": "/icons/logo.png",
 		"32": "/icons/logo.png",
@@ -47,7 +46,6 @@
 		"<all_urls>"
 	],
 	"action": {
-		"default_popup": "index.html#/popup",
 		"default_title": "Super2Brain"
 	},
 	"side_panel": {
@@ -56,8 +54,6 @@
 	"web_accessible_resources": [
 		{
 			"resources": [
-				"status.html",
-				"status.js",
 				"index.css",
 				"welcome.html",
 				"inject.js"

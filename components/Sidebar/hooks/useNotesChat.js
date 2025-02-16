@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { getResponse } from "../utils/index.js";
 
-export const useNotesChat = (userInput = "", selectedModel) => {
+export const useNotesChat = (userInput = "", selectedModel, searchEnabled) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedDocs, setExpandedDocs] = useState({});
@@ -21,6 +21,7 @@ export const useNotesChat = (userInput = "", selectedModel) => {
     const aiMessage = {
       id: (Date.now() + 1).toString(),
       content: "",
+      reasoning_content: "",
       isUser: false,
       isComplete: false,
       isClosed: false,
@@ -28,12 +29,14 @@ export const useNotesChat = (userInput = "", selectedModel) => {
       aboutQuestion: [],
       questionsLoading: true,
       model: selectedModel,
+      isReasoningExpanded: true,
       statusMsg: `正在思考`,
       status: 0,
     };
 
     setMessages((prev) => [...prev, userMessage, aiMessage]);
     setLoading(true);
+
     try {
       await getResponse(
         query,
@@ -43,6 +46,7 @@ export const useNotesChat = (userInput = "", selectedModel) => {
         })),
         userInput,
         selectedModel.toLowerCase(),
+        searchEnabled,
         (progress) => {
           if (progress.stage === 2) {
             setMessages((prev) =>
@@ -57,16 +61,22 @@ export const useNotesChat = (userInput = "", selectedModel) => {
                   : msg
               )
             );
-          } else if (progress.stage === 3 && progress.response) {
+          } else if (progress.stage === 3) {
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === aiMessage.id
                   ? {
                       ...msg,
-                      content: progress.response,
-                      isClosed: true,
-                      isComplete: true,
-                      questionsLoading: true,
+                      reasoning_content:
+                        progress.reasoning_content || msg.reasoning_content,
+                      content: progress.response || msg.content,
+                      ...(progress.response && {
+                        isClosed: true,
+                        isComplete: true,
+                        questionsLoading: true,
+                        statusMsg: null,
+                        status: 0,
+                      }),
                     }
                   : msg
               )
@@ -77,16 +87,14 @@ export const useNotesChat = (userInput = "", selectedModel) => {
                 msg.id === aiMessage.id
                   ? {
                       ...msg,
+                      isReasoningExpanded: false,
                       aboutQuestion: progress.questions,
                       questionsLoading: false,
-                      statusMsg: `正在分析相关问题`,
-                      status: 2,
                     }
                   : msg
               )
             );
           } else if (progress.stage === 4) {
-            console.log("progress", progress);
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === aiMessage.id
@@ -106,6 +114,8 @@ export const useNotesChat = (userInput = "", selectedModel) => {
                       ...msg,
                       statusMsg: progress.response,
                       status: 6,
+                      isComplete: true,
+                      questionsLoading: false,
                     }
                   : msg
               )
@@ -115,6 +125,19 @@ export const useNotesChat = (userInput = "", selectedModel) => {
       );
     } catch (error) {
       console.error("对话请求失败:", error);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMessage.id
+            ? {
+                ...msg,
+                isComplete: true,
+                questionsLoading: false,
+                statusMsg: "请求失败，请重试",
+                status: 6,
+              }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -130,7 +153,7 @@ export const useNotesChat = (userInput = "", selectedModel) => {
     }
   };
 
-  const handleRegenerate = async (messageId, userInput, selectedModel) => {
+  const handleRegenerate = async (messageId) => {
     const currentIndex = messages.findIndex((msg) => msg.id === messageId);
     if (currentIndex < 1) return;
 
@@ -143,8 +166,10 @@ export const useNotesChat = (userInput = "", selectedModel) => {
           ? {
               ...msg,
               content: "",
-              questionsLoading: false,
+              questionsLoading: true,
               isComplete: false,
+              statusMsg: "正在思考",
+              status: 0,
             }
           : msg
       )
@@ -159,6 +184,7 @@ export const useNotesChat = (userInput = "", selectedModel) => {
         })),
         userInput,
         selectedModel.toLowerCase(),
+        searchEnabled,
         (progress) => {
           if (progress.stage === 2 && progress.results) {
             setMessages((prev) =>
@@ -168,14 +194,20 @@ export const useNotesChat = (userInput = "", selectedModel) => {
                   : msg
               )
             );
-          } else if (progress.stage === 3 && progress.response) {
+          } else if (progress.stage === 3) {
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === messageId
                   ? {
                       ...msg,
-                      content: progress.response,
-                      isClosed: true,
+                      reasoning_content:
+                        progress.reasoning_content || msg.reasoning_content,
+                      content: progress.response || msg.content,
+                      ...(progress.response && {
+                        isClosed: true,
+                        isComplete: true,
+                        questionsLoading: true,
+                      }),
                     }
                   : msg
               )
@@ -184,7 +216,12 @@ export const useNotesChat = (userInput = "", selectedModel) => {
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === messageId
-                  ? { ...msg, aboutQuestion: progress.questions }
+                  ? {
+                      ...msg,
+                      isReasoningExpanded: false,
+                      aboutQuestion: progress.questions,
+                      questionsLoading: false,
+                    }
                   : msg
               )
             );
@@ -193,6 +230,19 @@ export const useNotesChat = (userInput = "", selectedModel) => {
       );
     } catch (error) {
       console.error("重新生成失败:", error);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                isComplete: true,
+                questionsLoading: false,
+                statusMsg: "重新生成失败，请重试",
+                status: 6,
+              }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -202,7 +252,21 @@ export const useNotesChat = (userInput = "", selectedModel) => {
     setMessages([]);
   }, []);
 
+  const handleReasoningExpand = useCallback((messageId, isExpanded) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              isReasoningExpanded: isExpanded,
+            }
+          : msg
+      )
+    );
+  }, []);
+
   return {
+    setMessages,
     messages,
     loading,
     expandedDocs,
@@ -212,5 +276,6 @@ export const useNotesChat = (userInput = "", selectedModel) => {
     handleCopy,
     handleRegenerate,
     handleReset,
+    handleReasoningExpand,
   };
 };

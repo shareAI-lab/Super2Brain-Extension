@@ -8,6 +8,7 @@ import {
   getCustomConfig,
   getLmstudioConfig,
   getUserInput,
+  getOpenAiUrl,
 } from "../../../public/storage";
 
 const useSeetingHandler = () => {
@@ -53,7 +54,8 @@ const useSeetingHandler = () => {
       const lmstudioConfig = await getLmstudioConfig();
       const ollamaConfig = await getOllamaConfig();
       const customConfig = await getCustomConfig();
-
+      const openaiUrl = await getOpenAiUrl();
+      console.log(openaiUrl);
       setSettings((prev) => ({
         super2brain: {
           baseUrl: `${config.baseUrl}/v1` || "",
@@ -64,7 +66,7 @@ const useSeetingHandler = () => {
           apiKey: configs[0] || "",
         },
         openai: {
-          baseUrl: "https://api.openai.com" || "",
+          baseUrl: openaiUrl || "https://api.openai.com",
           apiKey: configs[1] || "",
         },
         claude: {
@@ -72,11 +74,11 @@ const useSeetingHandler = () => {
           apiKey: configs[2] || "",
         },
         ollama: {
-          baseUrl: ollamaConfig.url || "",
+          baseUrl: ollamaConfig.url || "http://localhost:11434",
           apiKey: ollamaConfig.apiKey || "",
         },
         lmstudio: {
-          baseUrl: lmstudioConfig.url || "",
+          baseUrl: lmstudioConfig.url || "http://localhost:1234",
           apiKey: lmstudioConfig.apiKey || "",
         },
         custom: {
@@ -89,11 +91,7 @@ const useSeetingHandler = () => {
     }
   };
 
-  useEffect(() => {
-    fetchDeepSeekConfig();
-  }, []);
-
-  return { settings, setSettings };
+  return { settings, setSettings, fetchDeepSeekConfig };
 };
 
 export { useSeetingHandler };

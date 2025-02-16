@@ -8,6 +8,7 @@ import {
   getLmstudioConfig,
   getCustomModelIds,
   getCustomConfig,
+  getOpenAiUrl,
 } from "../../../../public/storage";
 import { Login } from "./modules/login";
 import { NavBar } from "./modules/navBar";
@@ -22,11 +23,13 @@ const SettingsContent = ({
   setWebPreview,
   settings,
   handleChange,
+  setIsShowModal,
+  pointCosts,
 }) => {
   const [activeTab, setActiveTab] = useState("基础设置");
 
   const renderModelSettings = () => (
-    <div className="px-6 overflow-y-auto flex-1">
+    <div className="px-6 overflow-y-auto flex-1 mt-4">
       {Object.entries(settings).map(([modelKey]) => (
         <ModelSettings
           setModelList={setModelList}
@@ -48,7 +51,13 @@ const SettingsContent = ({
       <div className="flex-1 overflow-hidden">
         {activeTab === "基础设置" && (
           <div className="h-full overflow-y-auto">
-            <BaseModel webPreview={webPreview} setWebPreview={setWebPreview} />
+            <BaseModel
+              pointCosts={pointCosts}
+              webPreview={webPreview}
+              setWebPreview={setWebPreview}
+              setIsShowModal={setIsShowModal}
+              setActiveTab={setActiveTab}
+            />
           </div>
         )}
         {activeTab === "模型设置" && (
@@ -73,6 +82,8 @@ export const SettingPage = ({
   updateDeepSeekConfig,
   userInput,
   setUserInput,
+  setIsShowModal,
+  pointCosts,
 }) => {
   const [modelList, setModelList] = useState([]);
 
@@ -112,6 +123,7 @@ export const SettingPage = ({
       ollamaConfig,
       lmstudioConfig,
       customConfig,
+      openaiUrl,
     ] = await Promise.all([
       getDeepSeekApiKey(),
       getClaudeApiKey(),
@@ -119,12 +131,13 @@ export const SettingPage = ({
       getOllamaConfig(),
       getLmstudioConfig(),
       getCustomConfig(),
+      getOpenAiUrl(),
     ]);
 
     return {
       deepseek: { apiKey: deepseekApiKey },
       claude: { apiKey: claudeApiKey },
-      openai: { apiKey: openaiApiKey },
+      openai: { apiKey: openaiApiKey, url: openaiUrl },
       ollama: {
         url: ollamaConfig.url || "http://localhost:11434",
         apiKey: ollamaConfig.apiKey || "",
@@ -148,12 +161,14 @@ export const SettingPage = ({
     <>
       {userInput ? (
         <SettingsContent
+          pointCosts={pointCosts}
           setModelList={setModelList}
           webPreview={webPreview}
           modelList={modelList}
           setWebPreview={setWebPreview}
           settings={settings}
           handleChange={handleChange}
+          setIsShowModal={setIsShowModal}
         />
       ) : (
         <Login setUserInput={setUserInput} />

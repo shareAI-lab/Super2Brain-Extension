@@ -11,7 +11,7 @@ export const getCode = async (email) => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`获取邮件失败，请重试`);
     }
 
     const data = await response.json();

@@ -8,8 +8,8 @@ const QuestionLoading = () => {
       key={index}
       className="w-2 h-2 bg-blue-500 rounded-full"
       animate={{
-        y: [0, -12, 0],
-        x: [0, 6, 0],
+        y: [0, -8, 0],
+        x: [0, 4, 0],
         scale: [1, 0.8, 1],
       }}
       transition={{
@@ -32,7 +32,7 @@ export const RelatedQuestions = ({ message, setQuery }) => {
   return (
     <>
       {message.questionsLoading && (
-        <div className="mt-2 w-full ml-2">
+        <div className="mt-2 ml-2">
           <div className="flex items-center gap-2 mb-2 text-gray-600">
             <HelpCircle className="w-4 h-4 text-gray-500" />
             <span className="text-sm font-medium">猜你想问</span>
@@ -42,12 +42,12 @@ export const RelatedQuestions = ({ message, setQuery }) => {
       )}
 
       {!message.questionsLoading && message.relatedQuestions?.length > 0 && (
-        <div className="mt-2 w-full ml-2">
+        <div className="mt-2 ml-2">
           <div className="flex items-center gap-2 mb-2 text-gray-600">
             <HelpCircle className="w-4 h-4 text-gray-500" />
             <span className="text-sm font-medium">猜你想问</span>
           </div>
-          <div className="space-y-1 w-full">
+          <div className="space-y-1">
             {message.relatedQuestions.map((question, index) => (
               <button
                 key={index}

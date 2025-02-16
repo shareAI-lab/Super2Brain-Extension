@@ -131,6 +131,15 @@ export async function getClaudeApiKey() {
   return apiKey || "";
 }
 
+
+export const setOpenAiUrl = (url) => {
+  return setItem("openAiUrl", url);
+};
+
+export const getOpenAiUrl = () => {
+  return getItem("openAiUrl");
+};
+
 export async function setOpenaiApiKey(apiKey) {
   return setItem("openaiApiKey", apiKey);
 }

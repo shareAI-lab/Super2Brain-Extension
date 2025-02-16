@@ -5,18 +5,26 @@ const MessageRole = {
 };
 
 const createUnifiedRequest = (messages, options = {}) => ({
-  messages: messages.map((msg) => ({
-    role: msg.role,
-    content: msg.imageData
-      ? [
-          { type: "text", text: msg.content },
-          {
-            type: "image_url",
-            image_url: { url: msg.imageData },
-          },
-        ]
-      : msg.content,
-  })),
+  messages: messages.map((msg) => {
+    const message = {
+      role: msg.role,
+      content: msg.imageData
+        ? [
+            { type: "text", text: msg.content },
+            {
+              type: "image_url",
+              image_url: { url: msg.imageData },
+            },
+          ]
+        : msg.content,
+    };
+
+    if (msg.reason_content) {
+      message.reason_content = msg.reason_content;
+    }
+
+    return message;
+  }),
   model: options.model,
   ...options,
 });
@@ -29,9 +37,11 @@ const modelAdapters = {
       messages: unifiedRequest.messages,
       temperature: unifiedRequest.temperature ?? 0.7,
       max_tokens: unifiedRequest.maxTokens,
+      stream: true,
     }),
     transformResponse: (response) => ({
       content: response.choices[0].message.content,
+      reason_content: response.choices[0].message.reasoning_content,
       usage: response.usage,
     }),
   },
@@ -42,6 +52,7 @@ const modelAdapters = {
       messages: unifiedRequest.messages,
       temperature: unifiedRequest.temperature ?? 0.7,
       max_tokens: unifiedRequest.maxTokens,
+      stream: true,
     }),
     transformResponse: (response) => ({
       content: response.choices[0].message.content,
@@ -58,6 +69,7 @@ const modelAdapters = {
       })),
       temperature: unifiedRequest.temperature ?? 0.7,
       max_tokens: unifiedRequest.maxTokens,
+      stream: true,
     }),
     transformResponse: (response) => ({
       content: response.content[0].text,
@@ -76,9 +88,11 @@ const modelAdapters = {
       messages: unifiedRequest.messages,
       temperature: unifiedRequest.temperature ?? 0.7,
       max_tokens: unifiedRequest.maxTokens,
+      stream: true,
     }),
     transformResponse: (response) => ({
       content: response.choices[0].message.content,
+      reason_content: response.choices[0].message.reasoning_content,
       usage: response.usage,
     }),
   },
@@ -93,6 +107,7 @@ const modelAdapters = {
       options: {
         temperature: unifiedRequest.temperature ?? 0.7,
       },
+      stream: true,
     }),
     transformResponse: (response) => ({
       content: response.message.content,
@@ -115,6 +130,7 @@ const modelAdapters = {
       })),
       temperature: unifiedRequest.temperature ?? 0.7,
       max_tokens: unifiedRequest.maxTokens,
+      stream: true,
     }),
     transformResponse: (response) => ({
       content: response.choices[0].message.content,
@@ -140,6 +156,7 @@ const modelAdapters = {
       })),
       temperature: unifiedRequest.temperature ?? 0.7,
       max_tokens: unifiedRequest.maxTokens,
+      stream: true,
     }),
     transformResponse: (response) => ({
       content: response.choices[0].message.content,
@@ -157,6 +174,7 @@ const MODEL_MAPPING = {
   "deepseek-r1": "deepseek-r1",
   "Deepseek-V3": "deepseek-chat",
   "Deepseek-R1": "deepseek-r1",
+  "claude-3.5-sonnet": "claude-3-5-sonnet-20241022",
 };
 
 const removeTrailingV1 = (url) =>
@@ -170,14 +188,14 @@ const callAI = async ({
   messages,
   options = {},
 }) => {
-  console.log(messages);
-
   const cleanBaseUrl = removeTrailingV1(baseUrl);
-
   const adapter = modelAdapters[provider];
-
-  const mappedModel = MODEL_MAPPING[model.toLowerCase()] || model;
-
+  let mappedModel = MODEL_MAPPING[model.toLowerCase()] || model;
+  if (provider === "deepseek" && model === "deepseek-v3") {
+    mappedModel = "deepseek-chat";
+  } else if (provider === "deepseek" && model === "deepseek-r1") {
+    mappedModel = "deepseek-r1";
+  }
   if (!adapter) {
     throw new Error(`不支持的 AI 提供商: ${provider}`);
   }
@@ -191,10 +209,18 @@ const callAI = async ({
       },
       body: JSON.stringify(
         adapter.transformRequest(
-          createUnifiedRequest(messages, { ...options, model: mappedModel })
+          createUnifiedRequest(messages, {
+            ...options,
+            model: mappedModel,
+            stream: true,
+          })
         )
       ),
     });
+
+    if (response.status === 402) {
+      throw new Error("余额不足");
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -203,9 +229,78 @@ const callAI = async ({
       );
     }
 
-    const data = await response.json();
-    return adapter.transformResponse(data);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = "";
+    let fullReasoningContent = "";
+    let lastChunkData = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+
+          try {
+            const chunkData = JSON.parse(data);
+            lastChunkData = chunkData;
+
+            if (
+              provider === "custom" ||
+              provider === "openai" ||
+              provider === "deepseek" ||
+              provider === "super2brain" ||
+              provider === "lmstudio"
+            ) {
+              fullContent += chunkData.choices[0]?.delta?.content || "";
+              if (chunkData.choices[0]?.delta?.reasoning_content) {
+                fullReasoningContent +=
+                  chunkData.choices[0].delta.reasoning_content;
+              }
+            } else if (provider === "claude") {
+              fullContent += chunkData.delta?.text || "";
+            } else if (provider === "ollama") {
+              fullContent += chunkData.message?.content || "";
+            } else {
+              fullContent += chunkData.message?.content || "";
+            }
+          } catch (e) {
+            console.error("解析流式数据失败:", e);
+          }
+        }
+      }
+    }
+
+    // 构造与原格式相同的响应
+    const simulatedResponse = {
+      choices: [
+        {
+          message: {
+            content: fullContent,
+            ...(fullReasoningContent && {
+              reasoning_content: fullReasoningContent,
+            }),
+          },
+        },
+      ],
+      usage: lastChunkData?.usage || {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
+    };
+
+    return adapter.transformResponse(simulatedResponse);
   } catch (error) {
+    if (error.name === "TimeoutError") {
+      throw new Error("请求超时，请稍后再试，请检查你的网络或切换模型");
+    }
     console.error(`${provider} API 调用失败:`, error);
     throw error;
   }

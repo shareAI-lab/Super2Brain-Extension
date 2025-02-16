@@ -62,16 +62,25 @@ export const checkClaudeApiKey = async (apiKey) => {
   }
 };
 
-export const checkOpenAiApiKey = async (apiKey) => {
+export const checkOpenAiApiKey = async (apiKey, baseUrl = null) => {
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    if (baseUrl) {
+      baseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+      // 移除末尾的 v1 路径（如果存在）
+      baseUrl = baseUrl.endsWith("/v1") ? baseUrl.slice(0, -3) : baseUrl;
+    }
+    const url = baseUrl
+      ? `${baseUrl}/v1/chat/completions`
+      : "https://api.openai.com/v1/chat/completions";
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o-mini",
         messages: [{ role: "user", content: "Hi" }],
       }),
     });
@@ -84,7 +93,7 @@ export const checkOpenAiApiKey = async (apiKey) => {
     return true;
   } catch (error) {
     console.error("API密钥验证错误:", error);
-    return false;
+    throw error;
   }
 };
 
